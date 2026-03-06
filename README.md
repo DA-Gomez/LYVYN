@@ -20,9 +20,17 @@ After you've cloned the project you want to install npm in the project itself so
 
 ``$ npm install`` 
 
-If you want to view the site  run
+If you want to view the site run (make sure the directory is /frontend)
 
 ``$ npm run dev``
+
+### Run the python file
+
+change directory to /backend
+
+then `$ venv\Scripts\activate`
+
+to run a python file do `$ py filename.py`  *note that if py doesnt work to python or python3. Dont forget to change the directory
 
 ## Push changes
 
