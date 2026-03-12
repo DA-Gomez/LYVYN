@@ -1,6 +1,5 @@
 
 import express from "express";
-import { number } from "yargs";
 const server = express();
 
 server.use(express.json());
@@ -71,38 +70,55 @@ colorGroup:  "cool"
 
 
 
-function getclothes(id){
- for(let i = 0; i < clothes.length ; i++){
- 	if (clothes[i].id === id){
- 		return clothes[i];
- 	}
-}
+function getclothes(){
+ 		return clothes;
 }
 
 
-function addclothes(cloth){
-  for(let i = 0; i < clothes.length ; i++){
-    if (clothes[i].id !== number & clothes[i].id !== any(clothes.id)){
-      return false;
-    }if (clothes[i].category !== any(clothes.category)){
-      return false;
-    }if (clothes[i].type !== any(clothes.type)){
-      return false;
-    }if (clothes[i].warmth !== any(clothes.warmth)){
-      return false;
-    }if (clothes[i].formality !== any(clothes.formality)){
-      return false;
-    }if (clothes[i].colorGroup !==  any(clothes.colorGroup)){
+function addclothes(newCloth){
+  
+  const validCategories = ["shoes", "bottom", "outerwear", "top"];
+  const validWarmth = ["light", "medium", "heavy"];
+  const validFormality = ["formal", "casual"];
+  const validColorGroups = ["warm", "cool", "neutral"];
+  const validTypes = ["leather", "hoodie", "jeans"];
+  const UsedId = [1, 2, 3, 4, 5, 6, 7];
+
+ 
+  if(!newCloth){
       return false;
     }
-  }
-  clothes.push(cloth);
+    if (!Number.isInteger(newCloth.id)  || UsedId.includes(newCloth.id)){
+      return false;
+    }if (!validCategories.includes(newCloth.category)){
+      return false;
+    }if (!validTypes.includes(newCloth.type)){
+      return false;
+    }if (!validWarmth.includes(newCloth.warmth)){
+      return false;
+    }if (!validFormality.includes(newCloth.formality)){
+      return false;
+    }if (!validColorGroups.includes(newCloth.colorGroup)){
+      return false;
+    }
+  
+  
+  clothes.push(newCloth);
   return true;
 }
 
-function recommendClothes(UserInput){
 
-}
+server.post("/clothes",(req, res) => {
+	console.log("POST /clothes was called");
+  var isValid = addclothes(req.body);
+
+  if (isValid === true){
+  res.status(201).json(req.body);
+  }
+  else {
+  res.status(400).json({ error: "Invalid cloth data" });
+  } 
+});
 
 
 server.get("/clothes", (req, res) => {
@@ -111,26 +127,18 @@ server.get("/clothes", (req, res) => {
 });
 
 
-server.post("/clothes",(req, res) => {
-	console.log("POST /clothes was called");
-  const newCloth = addclothes(req.body);
-
-if (newCloth === true){
-res.status(201).json(newCloth);
-}
-else {
-res.status(400).json({ error: "Invalid cloth data" });
-} 
-});
 
 server.listen(3000, () => {
   console.log("Server running on http://localhost:3000");
 });
 
+
+function recommendClothes(UserInput){
+
+}
+
 server.post("/recommend", (req,res) => {
-const input = req.body;
-
-
-
+const recOutfit = recommendClothes(req.body)
+res.status(201).json(recOutfit);
 
 });
