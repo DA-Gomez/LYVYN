@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "type": "module",
     "express": "^5.2.1",
     "lodash": "^4.17.23"
   }

@@ -16,7 +16,7 @@ colorGroup:"warm"
 {
   id: 2 , 
 category: "bottom",
- type:"hoodie",
+ type:"jeans",
  warmth: "medium",
  formality: "casual",
 colorGroup: "cool"
@@ -85,7 +85,7 @@ function addclothes(newCloth){
   const UsedId = [1, 2, 3, 4, 5, 6, 7];
 
  
-  if(!newCloth){
+    if(!newCloth){
       return false;
     }
     if (!Number.isInteger(newCloth.id)  || UsedId.includes(newCloth.id)){
@@ -135,10 +135,55 @@ server.listen(3000, () => {
 
 function recommendClothes(UserInput){
 
+  if(!UserInput){
+    return false;
+  }
+  
+var weather = UserInput.weather;
+var occasion = UserInput.occasion;
+var listOfClothes = UserInput.listOfClothes;
+var recommendedOutfit = [];
+
+if (weather === "hot" && occasion === "casual"){
+  for (let i = 0; i < clothes.length; i++){
+    if (clothes[i].warmth === "light" && clothes[i].formality === "casual" && listOfClothes.includes(clothes[i].category)){
+      recommendedOutfit.push(clothes[i]);
+    }
+  }
+}
+else if (weather === "hot" && occasion === "formal"){
+  for (let i = 0; i < clothes.length; i++){
+    if (clothes[i].warmth === "light" && clothes[i].formality === "formal" && listOfClothes.includes(clothes[i].category)){
+      recommendedOutfit.push(clothes[i]);
+    }
+  }
+}
+else if (weather === "cold" && occasion === "casual"){
+  for (let i = 0; i < clothes.length; i++){
+    if ((clothes[i].warmth === "heavy" || clothes[i].warmth === "medium") && clothes[i].formality === "casual" && listOfClothes.includes(clothes[i].category)){
+      recommendedOutfit.push(clothes[i]);
+    }
+  }
+}
+else if (weather === "cold" && occasion === "formal"){
+  for (let i = 0; i < clothes.length; i++){
+    if ((clothes[i].warmth === "heavy" || clothes[i].warmth === "medium") && clothes[i].formality === "formal" && listOfClothes.includes(clothes[i].category)){
+      recommendedOutfit.push(clothes[i]);
+    }
+  }
+} 
+return recommendedOutfit;
+
 }
 
 server.post("/recommend", (req,res) => {
+  console.log("POST /recommend was called");
 const recOutfit = recommendClothes(req.body)
-res.status(201).json(recOutfit);
 
+if (recOutfit === false){
+  res.status(400).json({ error: "No user input" });
+}
+else{
+res.status(201).json(recOutfit);
+}
 });
