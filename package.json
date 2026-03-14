@@ -1,6 +1,11 @@
 {
+  "type": "module",
+  "scripts": {
+    "start": "node backend/API/app.js",
+    "dev": "node backend/API/app.js"
+  },
   "dependencies": {
-    "type": "module",
+    "cors": "^2.8.6",
     "express": "^5.2.1",
     "lodash": "^4.17.23"
   }
