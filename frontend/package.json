@@ -1,20 +1,8 @@
 {
-  "name": "myapp",
-  "version": "0.0.0",
+  "name": "lvyvn-frontend",
   "private": true,
-  "description": "Before you start make sure you've got git and node.js installed (with npm preferably)",
-  "homepage": "https://github.com/DA-Gomez/LYVYN#readme",
-  "bugs": {
-    "url": "https://github.com/DA-Gomez/LYVYN/issues"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/DA-Gomez/LYVYN.git"
-  },
-  "license": "ISC",
-  "author": "",
+  "version": "0.0.0",
   "type": "module",
-  "main": "index.js",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -22,10 +10,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "express": "^5.2.1",
-    "firebase": "^12.9.0",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "react-dom": "^19.2.0",
+    "react-router-dom": "^7.13.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
