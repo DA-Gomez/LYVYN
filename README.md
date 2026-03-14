@@ -1,47 +1,33 @@
-# LYVYN
+## Yashvi's Contribution
 
-## Project Description
+I worked on the frontend implementation of LVYVN for Week 1 and Week 2.
 
-## How to run
+My work included:
 
-Before you start make sure you've got git and node.js installed (with npm preferably)
+### Features completed
+- Built the main frontend pages:
+  - Home
+  - Wardrobe
+  - Add Item
+  - Recommendation
+  - About
+- Designed and refined the UI with a clean wardrobe-style layout
+- Connected the **Wardrobe** page to the backend using `GET /clothes`
+- Connected the **Add Item** form to the backend using `POST /clothes`
+- Connected the **Recommendation** page to the backend using `POST /recommend`
+- Displayed wardrobe items in a grid/card layout
+- Added recommendation result cards and feedback buttons
+- Improved navigation, styling, and overall frontend structure
 
-Open or create the folder in which the project will be found (C:\Users\user\Desktop)
+### Backend integration work
+- Updated the backend API setup to support frontend integration
+- Enabled CORS for frontend-backend communication
+- Fixed backend validation so new clothing items can be added correctly
+- Ensured frontend and backend work together locally
 
-Open the terminal of you choice (powershell, command prompt, etc) and set the directory to folder
-
-``$ cd C:\Users\user\Desktop``
-
-Then clone the repository https://github.com/DA-Gomez/LYVYN.git
-
-``$ git clone https://github.com/DA-Gomez/LYVYN.git``
-
-After you've cloned the project you want to install npm in the project itself so
-
-``$ npm install`` 
-
-If you want to view the site run (make sure the directory is /frontend)
-
-``$ npm run dev``
-
-### Run the python file
-
-change directory to /backend
-
-then `$ venv\Scripts\activate`
-
-to run a python file do `$ py filename.py`  *note that if py doesnt work to python or python3. Dont forget to change the directory
-
-## Push changes
-
-If you've got local changes you want to put on the repository do
-
-``$ git init``
-
-``$ git add C:\dir\``
-
-If you wish for all your changes to get added do `git add .` I recommend you learn a bit of how to change directories so like ../ means parent folder and . means all files in the curr folder etc.
-
-``$ git commit -m "your message"``
-
-``$ git push``
+### Tech used
+- React
+- Vite
+- React Router
+- Express
+- REST API integration
