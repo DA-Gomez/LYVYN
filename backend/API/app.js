@@ -1,7 +1,9 @@
-
 import express from "express";
+import cors from "cors";
+
 const server = express();
 
+server.use(cors());
 server.use(express.json());
 
 const clothes = [
@@ -207,30 +209,35 @@ function addclothes(newCloth){
   return true;
 }
 
+  const newId =
+    clothes.length > 0 ? Math.max(...clothes.map((item) => item.id)) + 1 : 1;
 
-server.post("/clothes",(req, res) => {
-	console.log("POST /clothes was called");
-  var isValid = addclothes(req.body);
+  const clothWithId = {
+    id: newId,
+    ...newCloth,
+    type: newCloth.type.toLowerCase().trim(),
+  };
 
-  if (isValid === true){
-  res.status(201).json(req.body);
-  }
-  else {
-  res.status(400).json({ error: "Invalid cloth data" });
-  } 
-});
-
+  clothes.push(clothWithId);
+  return clothWithId;
+}
 
 server.get("/clothes", (req, res) => {
-	  console.log("GET /clothes was called");
-  res.json(clothes);
+  console.log("GET /clothes was called");
+  res.json(getclothes());
 });
 
+server.post("/clothes", (req, res) => {
+  console.log("POST /clothes was called");
 
 server.listen(3000, () => {
   console.log("Server running on http://localhost:3000");
 });
 
+function recommendClothes(userInput) {
+  if (!userInput) {
+    return false;
+  }
 
 function getOutfits(filteredClothes, outWear){
 
@@ -297,7 +304,7 @@ else if(weather === "hot" && occasion === "casual"){
 
 function recommendClothes(UserInput){
 
-  if(!UserInput){
+  if (!weather || !occasion || !Array.isArray(listOfClothes)) {
     return false;
   }
   
@@ -316,6 +323,7 @@ if (outfit.length === 0) {
 
 return outfit;
 
+  return recommendedOutfit;
 }
 
 
@@ -323,10 +331,15 @@ server.post("/recommend", (req,res) => {
 console.log("POST /recommend was called");
 const recOutfit = recommendClothes(req.body)
 
-if (recOutfit === false){
-  res.status(400).json({ error: "No user input" });
-}
-else{
-res.status(201).json(recOutfit);
-}
+  const recOutfit = recommendClothes(req.body);
+
+  if (recOutfit === false) {
+    res.status(400).json({ error: "No user input" });
+  } else {
+    res.status(201).json(recOutfit);
+  }
+});
+
+server.listen(3000, () => {
+  console.log("Server running on http://localhost:3000");
 });
