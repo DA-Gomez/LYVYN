@@ -183,13 +183,12 @@ async function recommendClothes(userInput) {
     return false;
   }
 
-  const weather = userInput.weather;
-  const occasion = userInput.occasion;
-  const listOfClothes = userInput.listOfClothes;
+function getOutfits(filteredClothes, outWear){
 
-  if (!weather || !occasion || !Array.isArray(listOfClothes)) {
-    return false;
-  }
+ var tops = filteredClothes.filter(c => c.category === "top");
+      var bottoms = filteredClothes.filter(c => c.category === "bottom");
+      var shoes = filteredClothes.filter(c => c.category === "shoes");
+      var outerwear = filteredClothes.filter(c => c.category === "outerwear");
 
   const clothes = await getClothesFromDB();
   const { filteredClothes, outWear } = ruleFiltering(
@@ -204,6 +203,60 @@ async function recommendClothes(userInput) {
   if (outfits.length === 0) {
     return { message: "No match found" };
   }
+  return outfits;
+}
+
+
+
+
+
+function ruleFiltering(weather, occasion, listOfClothes){
+
+ var filteredClothes = clothes.filter(c => listOfClothes.includes(c.id));
+
+ var outWear = false;
+
+if(weather === "cold" && occasion === "formal"){
+  filteredClothes = filteredClothes.filter(c => (c.warmth === "heavy" || c.warmth === "medium") && c.formality === "formal");
+  outWear = true;
+}
+else if(weather === "hot" && occasion === "formal"){
+  filteredClothes = filteredClothes.filter(c => (c.warmth === "light" || c.warmth === "medium") && c.formality === "formal");
+}
+else if(weather === "cold" && occasion === "casual"){
+  filteredClothes = filteredClothes.filter(c => (c.warmth === "heavy" || c.warmth === "medium") && c.formality === "casual");
+  outWear = true;
+}
+else if(weather === "hot" && occasion === "casual"){
+  filteredClothes = filteredClothes.filter(c => (c.warmth === "light" || c.warmth === "medium") && c.formality === "casual");
+}
+
+
+ return {filteredClothes , outWear};
+
+}
+
+
+function recommendClothes(UserInput){
+
+  if (!weather || !occasion || !Array.isArray(listOfClothes)) {
+    return false;
+  }
+  
+var weather = UserInput.weather;
+var occasion = UserInput.occasion;
+var listOfClothes = UserInput.listOfClothes;
+
+
+var {filteredClothes: clothesList, outWear } = ruleFiltering(weather, occasion, listOfClothes);
+
+var outfit = getOutfits(clothesList, outWear);
+
+if (outfit.length === 0) {
+  return { message: "No match found" };
+}
+
+return outfit;
 
   return outfits;
 }
