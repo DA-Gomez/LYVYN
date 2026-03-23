@@ -43,3 +43,8 @@ export async function sendFeedback(payload) {
   if (!res.ok) throw new Error("Failed to save feedback");
   return res.json();
 }
+export async function getWeather(city = "Toronto") {
+  const res = await fetch(`${BASE_URL}/weather?city=${encodeURIComponent(city)}`);
+  if (!res.ok) throw new Error("Failed to fetch weather");
+  return res.json();
+}
