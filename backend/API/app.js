@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import db from "../config/firebase.js";
 import dotenv from "dotenv";
+
 dotenv.config();
 
 const server = express();
@@ -106,6 +107,77 @@ server.post("/clothes", async (req, res) => {
   }
 });
 
+function getOutfits(filteredClothes, outWear) {
+  const tops = filteredClothes.filter((c) => c.category === "top");
+  const bottoms = filteredClothes.filter((c) => c.category === "bottom");
+  const shoes = filteredClothes.filter((c) => c.category === "shoes");
+  const outerwear = filteredClothes.filter((c) => c.category === "outerwear");
+
+  const outfits = [];
+
+  if (outWear) {
+    for (const t of tops) {
+      for (const b of bottoms) {
+        for (const s of shoes) {
+          for (const o of outerwear) {
+            outfits.push({ top: t, bottom: b, shoes: s, outerwear: o });
+          }
+        }
+      }
+    }
+  } else {
+    for (const t of tops) {
+      for (const b of bottoms) {
+        for (const s of shoes) {
+          outfits.push({ top: t, bottom: b, shoes: s });
+        }
+      }
+    }
+  }
+
+  return outfits;
+}
+
+function ruleFiltering(weather, occasion, listOfClothes, clothes) {
+  let filteredClothes = clothes.filter(
+    (c) =>
+      listOfClothes.includes(c.id) ||
+      listOfClothes.includes(c.category)
+  );
+
+  let outWear = false;
+
+  if (weather === "cold" && occasion === "formal") {
+    filteredClothes = filteredClothes.filter(
+      (c) =>
+        (c.warmth === "heavy" || c.warmth === "medium") &&
+        c.formality === "formal"
+    );
+    outWear = true;
+  } else if (weather === "hot" && occasion === "formal") {
+    filteredClothes = filteredClothes.filter(
+      (c) =>
+        (c.warmth === "light" || c.warmth === "medium") &&
+        c.formality === "formal"
+    );
+  } else if (weather === "cold" && occasion === "casual") {
+    filteredClothes = filteredClothes.filter(
+      (c) =>
+        (c.warmth === "heavy" || c.warmth === "medium") &&
+        c.formality === "casual"
+    );
+    outWear = true;
+  } else if (weather === "hot" && occasion === "casual") {
+    filteredClothes = filteredClothes.filter(
+      (c) =>
+        (c.warmth === "light" || c.warmth === "medium") &&
+        c.formality === "casual"
+    );
+  }
+
+  return { filteredClothes, outWear };
+}
+
 async function recommendClothes(userInput) {
   if (!userInput) {
     return false;
@@ -120,51 +192,20 @@ async function recommendClothes(userInput) {
   }
 
   const clothes = await getClothesFromDB();
-  const recommendedOutfit = [];
+  const { filteredClothes, outWear } = ruleFiltering(
+    weather,
+    occasion,
+    listOfClothes,
+    clothes
+  );
 
-  if (weather === "hot" && occasion === "casual") {
-    for (let i = 0; i < clothes.length; i++) {
-      if (
-        clothes[i].warmth === "light" &&
-        clothes[i].formality === "casual" &&
-        listOfClothes.includes(clothes[i].category)
-      ) {
-        recommendedOutfit.push(clothes[i]);
-      }
-    }
-  } else if (weather === "hot" && occasion === "formal") {
-    for (let i = 0; i < clothes.length; i++) {
-      if (
-        clothes[i].warmth === "light" &&
-        clothes[i].formality === "formal" &&
-        listOfClothes.includes(clothes[i].category)
-      ) {
-        recommendedOutfit.push(clothes[i]);
-      }
-    }
-  } else if (weather === "cold" && occasion === "casual") {
-    for (let i = 0; i < clothes.length; i++) {
-      if (
-        (clothes[i].warmth === "heavy" || clothes[i].warmth === "medium") &&
-        clothes[i].formality === "casual" &&
-        listOfClothes.includes(clothes[i].category)
-      ) {
-        recommendedOutfit.push(clothes[i]);
-      }
-    }
-  } else if (weather === "cold" && occasion === "formal") {
-    for (let i = 0; i < clothes.length; i++) {
-      if (
-        (clothes[i].warmth === "heavy" || clothes[i].warmth === "medium") &&
-        clothes[i].formality === "formal" &&
-        listOfClothes.includes(clothes[i].category)
-      ) {
-        recommendedOutfit.push(clothes[i]);
-      }
-    }
+  const outfits = getOutfits(filteredClothes, outWear);
+
+  if (outfits.length === 0) {
+    return { message: "No match found" };
   }
 
-  return recommendedOutfit;
+  return outfits;
 }
 
 server.post("/recommend", async (req, res) => {
@@ -225,7 +266,9 @@ server.get("/weather", async (req, res) => {
     const data = await response.json();
 
     if (!response.ok) {
-      return res.status(400).json({ error: "Failed to fetch weather", details: data });
+      return res
+        .status(400)
+        .json({ error: "Failed to fetch weather", details: data });
     }
 
     const normalized = normalizeWeather(data);
