@@ -31,3 +31,20 @@ export async function getRecommendation(payload) {
   if (!res.ok) throw new Error("Failed to generate recommendation");
   return res.json();
 }
+export async function sendFeedback(payload) {
+  const res = await fetch(`${BASE_URL}/feedback`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) throw new Error("Failed to save feedback");
+  return res.json();
+}
+export async function getWeather(city = "Toronto") {
+  const res = await fetch(`${BASE_URL}/weather?city=${encodeURIComponent(city)}`);
+  if (!res.ok) throw new Error("Failed to fetch weather");
+  return res.json();
+}
