@@ -183,155 +183,156 @@ async function recommendClothes(userInput) {
     return false;
   }
 
-function getOutfits(filteredClothes, outWear){
+  async function getOutfits(filteredClothes, outWear) {
 
- var tops = filteredClothes.filter(c => c.category === "top");
-      var bottoms = filteredClothes.filter(c => c.category === "bottom");
-      var shoes = filteredClothes.filter(c => c.category === "shoes");
-      var outerwear = filteredClothes.filter(c => c.category === "outerwear");
+    var tops = filteredClothes.filter(c => c.category === "top");
+    var bottoms = filteredClothes.filter(c => c.category === "bottom");
+    var shoes = filteredClothes.filter(c => c.category === "shoes");
+    var outerwear = filteredClothes.filter(c => c.category === "outerwear");
 
-  const clothes = await getClothesFromDB();
-  const { filteredClothes, outWear } = ruleFiltering(
-    weather,
-    occasion,
-    listOfClothes,
-    clothes
-  );
-
-  const outfits = getOutfits(filteredClothes, outWear);
-
-  if (outfits.length === 0) {
-    return { message: "No match found" };
-  }
-  return outfits;
-}
-
-
-
-
-
-function ruleFiltering(weather, occasion, listOfClothes){
-
- var filteredClothes = clothes.filter(c => listOfClothes.includes(c.id));
-
- var outWear = false;
-
-if(weather === "cold" && occasion === "formal"){
-  filteredClothes = filteredClothes.filter(c => (c.warmth === "heavy" || c.warmth === "medium") && c.formality === "formal");
-  outWear = true;
-}
-else if(weather === "hot" && occasion === "formal"){
-  filteredClothes = filteredClothes.filter(c => (c.warmth === "light" || c.warmth === "medium") && c.formality === "formal");
-}
-else if(weather === "cold" && occasion === "casual"){
-  filteredClothes = filteredClothes.filter(c => (c.warmth === "heavy" || c.warmth === "medium") && c.formality === "casual");
-  outWear = true;
-}
-else if(weather === "hot" && occasion === "casual"){
-  filteredClothes = filteredClothes.filter(c => (c.warmth === "light" || c.warmth === "medium") && c.formality === "casual");
-}
-
-
- return {filteredClothes , outWear};
-
-}
-
-
-function recommendClothes(UserInput){
-
-  if (!weather || !occasion || !Array.isArray(listOfClothes)) {
-    return false;
-  }
-  
-var weather = UserInput.weather;
-var occasion = UserInput.occasion;
-var listOfClothes = UserInput.listOfClothes;
-
-
-var {filteredClothes: clothesList, outWear } = ruleFiltering(weather, occasion, listOfClothes);
-
-var outfit = getOutfits(clothesList, outWear);
-
-if (outfit.length === 0) {
-  return { message: "No match found" };
-}
-
-return outfit;
-
-  return outfits;
-}
-
-server.post("/recommend", async (req, res) => {
-  console.log("POST /recommend was called");
-
-  try {
-    const recOutfit = await recommendClothes(req.body);
-
-    if (recOutfit === false) {
-      res.status(400).json({ error: "No user input" });
-    } else {
-      res.status(201).json(recOutfit);
-    }
-  } catch (error) {
-    console.error("Error generating recommendation:", error);
-    res.status(500).json({ error: "Failed to generate recommendation" });
-  }
-});
-
-server.post("/feedback", async (req, res) => {
-  console.log("POST /feedback was called");
-
-  try {
-    const feedback = req.body;
-
-    if (!feedback || typeof feedback.liked !== "boolean") {
-      return res.status(400).json({ error: "Invalid feedback data" });
-    }
-
-    const feedbackData = {
-      ...feedback,
-      timestamp: new Date().toISOString(),
-    };
-
-    const docRef = await db.collection("feedback").add(feedbackData);
-
-    res.status(201).json({
-      id: docRef.id,
-      ...feedbackData,
-    });
-  } catch (error) {
-    console.error("Error saving feedback:", error);
-    res.status(500).json({ error: "Failed to save feedback" });
-  }
-});
-
-server.get("/weather", async (req, res) => {
-  console.log("GET /weather was called");
-
-  try {
-    const city = req.query.city || "Toronto";
-    const apiKey = process.env.OPENWEATHER_API_KEY;
-
-    const response = await fetch(
-      `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(city)}&appid=${apiKey}&units=metric`
+    const clothes = await getClothesFromDB();
+    const { filteredClothes, outWear } = ruleFiltering(
+      weather,
+      occasion,
+      listOfClothes,
+      clothes
     );
 
-    const data = await response.json();
+    const outfits = getOutfits(filteredClothes, outWear);
 
-    if (!response.ok) {
-      return res
-        .status(400)
-        .json({ error: "Failed to fetch weather", details: data });
+    if (outfits.length === 0) {
+      return { message: "No match found" };
+    }
+    return outfits;
+  }
+
+
+
+
+
+  function ruleFiltering(weather, occasion, listOfClothes) {
+
+    var filteredClothes = clothes.filter(c => listOfClothes.includes(c.id));
+
+    var outWear = false;
+
+    if (weather === "cold" && occasion === "formal") {
+      filteredClothes = filteredClothes.filter(c => (c.warmth === "heavy" || c.warmth === "medium") && c.formality === "formal");
+      outWear = true;
+    }
+    else if (weather === "hot" && occasion === "formal") {
+      filteredClothes = filteredClothes.filter(c => (c.warmth === "light" || c.warmth === "medium") && c.formality === "formal");
+    }
+    else if (weather === "cold" && occasion === "casual") {
+      filteredClothes = filteredClothes.filter(c => (c.warmth === "heavy" || c.warmth === "medium") && c.formality === "casual");
+      outWear = true;
+    }
+    else if (weather === "hot" && occasion === "casual") {
+      filteredClothes = filteredClothes.filter(c => (c.warmth === "light" || c.warmth === "medium") && c.formality === "casual");
     }
 
-    const normalized = normalizeWeather(data);
-    res.json(normalized);
-  } catch (error) {
-    console.error("Weather route error:", error);
-    res.status(500).json({ error: "Weather route failed" });
-  }
-});
 
-server.listen(3000, () => {
-  console.log("Server running on http://localhost:3000");
-});
+    return { filteredClothes, outWear };
+
+  }
+
+
+  function recommendClothes(UserInput) {
+
+    if (!weather || !occasion || !Array.isArray(listOfClothes)) {
+      return false;
+    }
+
+    var weather = UserInput.weather;
+    var occasion = UserInput.occasion;
+    var listOfClothes = UserInput.listOfClothes;
+
+
+    var { filteredClothes: clothesList, outWear } = ruleFiltering(weather, occasion, listOfClothes);
+
+    var outfit = getOutfits(clothesList, outWear);
+
+    if (outfit.length === 0) {
+      return { message: "No match found" };
+    }
+
+    return outfit;
+
+    return outfits;
+  }
+
+  server.post("/recommend", async (req, res) => {
+    console.log("POST /recommend was called");
+
+    try {
+      const recOutfit = await recommendClothes(req.body);
+
+      if (recOutfit === false) {
+        res.status(400).json({ error: "No user input" });
+      } else {
+        res.status(201).json(recOutfit);
+      }
+    } catch (error) {
+      console.error("Error generating recommendation:", error);
+      res.status(500).json({ error: "Failed to generate recommendation" });
+    }
+  });
+
+  server.post("/feedback", async (req, res) => {
+    console.log("POST /feedback was called");
+
+    try {
+      const feedback = req.body;
+
+      if (!feedback || typeof feedback.liked !== "boolean") {
+        return res.status(400).json({ error: "Invalid feedback data" });
+      }
+
+      const feedbackData = {
+        ...feedback,
+        timestamp: new Date().toISOString(),
+      };
+
+      const docRef = await db.collection("feedback").add(feedbackData);
+
+      res.status(201).json({
+        id: docRef.id,
+        ...feedbackData,
+      });
+    } catch (error) {
+      console.error("Error saving feedback:", error);
+      res.status(500).json({ error: "Failed to save feedback" });
+    }
+  });
+
+  server.get("/weather", async (req, res) => {
+    console.log("GET /weather was called");
+
+    try {
+      const city = req.query.city || "Toronto";
+      const apiKey = process.env.OPENWEATHER_API_KEY;
+
+      const response = await fetch(
+        `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(city)}&appid=${apiKey}&units=metric`
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        return res
+          .status(400)
+          .json({ error: "Failed to fetch weather", details: data });
+      }
+
+      const normalized = normalizeWeather(data);
+      res.json(normalized);
+    } catch (error) {
+      console.error("Weather route error:", error);
+      res.status(500).json({ error: "Weather route failed" });
+    }
+  });
+
+  server.listen(3000, () => {
+    console.log("Server running on http://localhost:3000");
+  });
+}
