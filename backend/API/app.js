@@ -77,36 +77,6 @@ async function addClothToDB(newCloth) {
   };
 }
 
-server.get("/clothes", async (req, res) => {
-  console.log("GET /clothes was called");
-
-  try {
-    const clothes = await getClothesFromDB();
-    console.log("Firestore clothes count:", clothes.length);
-    res.json(clothes);
-  } catch (error) {
-    console.error("Error fetching clothes:", error);
-    res.status(500).json({ error: "Failed to fetch clothes" });
-  }
-});
-
-server.post("/clothes", async (req, res) => {
-  console.log("POST /clothes was called");
-
-  try {
-    const createdCloth = await addClothToDB(req.body);
-
-    if (createdCloth) {
-      res.status(201).json(createdCloth);
-    } else {
-      res.status(400).json({ error: "Invalid cloth data" });
-    }
-  } catch (error) {
-    console.error("Error adding cloth:", error);
-    res.status(500).json({ error: "Failed to add clothing item" });
-  }
-});
-
 function getOutfits(filteredClothes, outWear) {
   const tops = filteredClothes.filter((c) => c.category === "top");
   const bottoms = filteredClothes.filter((c) => c.category === "bottom");
@@ -140,9 +110,7 @@ function getOutfits(filteredClothes, outWear) {
 
 function ruleFiltering(weather, occasion, listOfClothes, clothes) {
   let filteredClothes = clothes.filter(
-    (c) =>
-      listOfClothes.includes(c.id) ||
-      listOfClothes.includes(c.category)
+    (c) => listOfClothes.includes(c.id) || listOfClothes.includes(c.category)
   );
 
   let outWear = false;
@@ -183,156 +151,132 @@ async function recommendClothes(userInput) {
     return false;
   }
 
-  async function getOutfits(filteredClothes, outWear) {
+  const weather = userInput.weather;
+  const occasion = userInput.occasion;
+  const listOfClothes = userInput.listOfClothes;
 
-    var tops = filteredClothes.filter(c => c.category === "top");
-    var bottoms = filteredClothes.filter(c => c.category === "bottom");
-    var shoes = filteredClothes.filter(c => c.category === "shoes");
-    var outerwear = filteredClothes.filter(c => c.category === "outerwear");
+  if (!weather || !occasion || !Array.isArray(listOfClothes)) {
+    return false;
+  }
 
+  const clothes = await getClothesFromDB();
+  const { filteredClothes: filteredItems, outWear } = ruleFiltering(
+    weather,
+    occasion,
+    listOfClothes,
+    clothes
+  );
+
+  const outfits = getOutfits(filteredItems, outWear);
+
+  if (outfits.length === 0) {
+    return { message: "No match found" };
+  }
+
+  return outfits;
+}
+
+server.get("/clothes", async (req, res) => {
+  console.log("GET /clothes was called");
+
+  try {
     const clothes = await getClothesFromDB();
-    const { filteredClothes, outWear } = ruleFiltering(
-      weather,
-      occasion,
-      listOfClothes,
-      clothes
+    console.log("Firestore clothes count:", clothes.length);
+    res.json(clothes);
+  } catch (error) {
+    console.error("Error fetching clothes:", error);
+    res.status(500).json({ error: "Failed to fetch clothes" });
+  }
+});
+
+server.post("/clothes", async (req, res) => {
+  console.log("POST /clothes was called");
+
+  try {
+    const createdCloth = await addClothToDB(req.body);
+
+    if (createdCloth) {
+      res.status(201).json(createdCloth);
+    } else {
+      res.status(400).json({ error: "Invalid cloth data" });
+    }
+  } catch (error) {
+    console.error("Error adding cloth:", error);
+    res.status(500).json({ error: "Failed to add clothing item" });
+  }
+});
+
+server.post("/recommend", async (req, res) => {
+  console.log("POST /recommend was called");
+
+  try {
+    const recOutfit = await recommendClothes(req.body);
+
+    if (recOutfit === false) {
+      res.status(400).json({ error: "No user input" });
+    } else {
+      res.status(201).json(recOutfit);
+    }
+  } catch (error) {
+    console.error("Error generating recommendation:", error);
+    res.status(500).json({ error: "Failed to generate recommendation" });
+  }
+});
+
+server.post("/feedback", async (req, res) => {
+  console.log("POST /feedback was called");
+
+  try {
+    const feedback = req.body;
+
+    if (!feedback || typeof feedback.liked !== "boolean") {
+      return res.status(400).json({ error: "Invalid feedback data" });
+    }
+
+    const feedbackData = {
+      ...feedback,
+      timestamp: new Date().toISOString(),
+    };
+
+    const docRef = await db.collection("feedback").add(feedbackData);
+
+    res.status(201).json({
+      id: docRef.id,
+      ...feedbackData,
+    });
+  } catch (error) {
+    console.error("Error saving feedback:", error);
+    res.status(500).json({ error: "Failed to save feedback" });
+  }
+});
+
+server.get("/weather", async (req, res) => {
+  console.log("GET /weather was called");
+
+  try {
+    const city = req.query.city || "Toronto";
+    const apiKey = process.env.OPENWEATHER_API_KEY;
+
+    const response = await fetch(
+      `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(city)}&appid=${apiKey}&units=metric`
     );
 
-    const outfits = getOutfits(filteredClothes, outWear);
+    const data = await response.json();
 
-    if (outfits.length === 0) {
-      return { message: "No match found" };
+    if (!response.ok) {
+      return res
+        .status(400)
+        .json({ error: "Failed to fetch weather", details: data });
     }
-    return outfits;
+
+    const normalized = normalizeWeather(data);
+    res.json(normalized);
+  } catch (error) {
+    console.error("Weather route error:", error);
+    res.status(500).json({ error: "Weather route failed" });
   }
+});
 
-
-
-
-
-  function ruleFiltering(weather, occasion, listOfClothes) {
-
-    var filteredClothes = clothes.filter(c => listOfClothes.includes(c.id));
-
-    var outWear = false;
-
-    if (weather === "cold" && occasion === "formal") {
-      filteredClothes = filteredClothes.filter(c => (c.warmth === "heavy" || c.warmth === "medium") && c.formality === "formal");
-      outWear = true;
-    }
-    else if (weather === "hot" && occasion === "formal") {
-      filteredClothes = filteredClothes.filter(c => (c.warmth === "light" || c.warmth === "medium") && c.formality === "formal");
-    }
-    else if (weather === "cold" && occasion === "casual") {
-      filteredClothes = filteredClothes.filter(c => (c.warmth === "heavy" || c.warmth === "medium") && c.formality === "casual");
-      outWear = true;
-    }
-    else if (weather === "hot" && occasion === "casual") {
-      filteredClothes = filteredClothes.filter(c => (c.warmth === "light" || c.warmth === "medium") && c.formality === "casual");
-    }
-
-
-    return { filteredClothes, outWear };
-
-  }
-
-
-  function recommendClothes(UserInput) {
-
-    if (!weather || !occasion || !Array.isArray(listOfClothes)) {
-      return false;
-    }
-
-    var weather = UserInput.weather;
-    var occasion = UserInput.occasion;
-    var listOfClothes = UserInput.listOfClothes;
-
-
-    var { filteredClothes: clothesList, outWear } = ruleFiltering(weather, occasion, listOfClothes);
-
-    var outfit = getOutfits(clothesList, outWear);
-
-    if (outfit.length === 0) {
-      return { message: "No match found" };
-    }
-
-    return outfit;
-
-    return outfits;
-  }
-
-  server.post("/recommend", async (req, res) => {
-    console.log("POST /recommend was called");
-
-    try {
-      const recOutfit = await recommendClothes(req.body);
-
-      if (recOutfit === false) {
-        res.status(400).json({ error: "No user input" });
-      } else {
-        res.status(201).json(recOutfit);
-      }
-    } catch (error) {
-      console.error("Error generating recommendation:", error);
-      res.status(500).json({ error: "Failed to generate recommendation" });
-    }
-  });
-
-  server.post("/feedback", async (req, res) => {
-    console.log("POST /feedback was called");
-
-    try {
-      const feedback = req.body;
-
-      if (!feedback || typeof feedback.liked !== "boolean") {
-        return res.status(400).json({ error: "Invalid feedback data" });
-      }
-
-      const feedbackData = {
-        ...feedback,
-        timestamp: new Date().toISOString(),
-      };
-
-      const docRef = await db.collection("feedback").add(feedbackData);
-
-      res.status(201).json({
-        id: docRef.id,
-        ...feedbackData,
-      });
-    } catch (error) {
-      console.error("Error saving feedback:", error);
-      res.status(500).json({ error: "Failed to save feedback" });
-    }
-  });
-
-  server.get("/weather", async (req, res) => {
-    console.log("GET /weather was called");
-
-    try {
-      const city = req.query.city || "Toronto";
-      const apiKey = process.env.OPENWEATHER_API_KEY;
-
-      const response = await fetch(
-        `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(city)}&appid=${apiKey}&units=metric`
-      );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        return res
-          .status(400)
-          .json({ error: "Failed to fetch weather", details: data });
-      }
-
-      const normalized = normalizeWeather(data);
-      res.json(normalized);
-    } catch (error) {
-      console.error("Weather route error:", error);
-      res.status(500).json({ error: "Weather route failed" });
-    }
-  });
-
-  server.listen(3000, () => {
-    console.log("Server running on http://localhost:3000");
-  });
-}
+server.listen(3000, () => {
+  console.log("Server running on http://localhost:3000");
+});
