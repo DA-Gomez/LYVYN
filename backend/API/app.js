@@ -118,6 +118,11 @@ function getOutfits(filteredClothes, requiresOuterwear) {
 
   for (const t of tops) {
     for (const b of bottoms) {
+      // skip bad combination
+      if (t.colorGroup !== "neutral" && b.colorGroup !== "neutral" && t.colorGroup !== b.colorGroup) {
+        continue; 
+      }
+
       for (const s of shoes) {
         if (requiresOuterwear) {
           for (const o of outerwear) {
@@ -210,6 +215,28 @@ server.post("/clothes", async (req, res) => {
   }
 });
 
+function generateReasoning(weatherCategory, occasion, outfit, score) {
+  let reasons = [];
+
+  if (weatherCategory === "cold") {
+    reasons.push("Includes warm layers and outerwear to protect against the cold.");
+  }
+  else if (weatherCategory === "hot") {
+    reasons.push("Features light, breathable items suited for hot weather.");
+  }
+  else if (weatherCategory === "mild") {
+    reasons.push("Perfectly balanced for mild, comfortable weather.");
+  }
+
+  reasons.push(`Carefully matched to fit your ${occasion} dress code.`);
+
+  if (score > 0.75) {
+    reasons.push("Highly rated based on your personal style and past feedback.");
+  }
+
+  return reasons;
+}
+
 // call ML model to recommend outfit using the actual py file >> DG
 server.post("/recommend", async (req, res) => {
   console.log("POST /recommend was called");
@@ -259,10 +286,12 @@ server.post("/recommend", async (req, res) => {
     //gets the ID of the best outfit so we can locate it and return its values
     const bestOutfitIDIndex = parseInt(mlResponse.best_outfit.outfit_id.split("_")[1]);//hardset rule my ML
     const finalRecommendation = validOutfits[bestOutfitIDIndex];
+    const explanation = generateReasoning(weatherCategory, occasion, finalRecommendation, mlResponse.best_outfit.ml_score);
 
     res.status(200).json({
       recommendedOutfit: finalRecommendation,
-      confidenceScore: mlResponse.best_outfit.ml_score
+      confidenceScore: mlResponse.best_outfit.ml_score,
+      reasoning: explanation,
     });
   } catch (error) {
     console.error("Error generating recommendation:", error);
