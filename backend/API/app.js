@@ -72,10 +72,7 @@ async function addClothToDB(newCloth) {
 
   const docRef = await db.collection("clothes").add(clothData);
 
-  return {
-    id: docRef.id,
-    ...clothData,
-  };
+  return { id: docRef.id, ...clothData };
 }
 
 // ML integration (more in depth explanations found in test.js) >> DG
@@ -97,7 +94,7 @@ const executePython = async (script, args) => {
 
     py.stderr.on("data", (data) => {
       console.error('python error: ', data.toString());
-      reject('error in ', script);
+      reject(`error in ${script}`);
     })
 
     py.on("exit", (code) => {
@@ -155,36 +152,6 @@ function ruleFiltering(weatherCategory, occasion, listOfClothes, clothes) {
   return { filteredClothes, requiresOuterwear };
 }
 
-// async function recommendClothes(userInput) {
-//   if (!userInput) {
-//     return false;
-//   }
-
-//   const weather = userInput.weather;
-//   const occasion = userInput.occasion;
-//   const listOfClothes = userInput.listOfClothes;
-
-//   if (!weather || !occasion || !Array.isArray(listOfClothes)) {
-//     return false;
-//   }
-
-//   const clothes = await getClothesFromDB();
-//   const { filteredClothes: filteredItems, outWear } = ruleFiltering(
-//     weather,
-//     occasion,
-//     listOfClothes,
-//     clothes
-//   );
-
-//   const outfits = getOutfits(filteredItems, outWear);
-
-//   if (outfits.length === 0) {
-//     return { message: "No match found" };
-//   }
-
-//   return outfits;
-// }
-
 server.get("/clothes", async (req, res) => {
   console.log("GET /clothes was called");
 
@@ -233,7 +200,7 @@ function generateReasoning(weatherCategory, occasion, outfit, score) {
   if (score > 0.75) {
     reasons.push("Highly rated based on your personal style and past feedback.");
   }
-
+  
   return reasons;
 }
 
