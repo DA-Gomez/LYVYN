@@ -32,6 +32,12 @@ then `$ venv\Scripts\activate`
 
 to run a python file do `$ py filename.py`  *note that if py doesnt work to python or python3. Dont forget to change the directory
 
+### Run the backend 
+
+from root folder you can
+
+``$ node backend/API/app.js`` 
+
 ## Push changes
 
 If you've got local changes you want to put on the repository do

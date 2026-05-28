@@ -1,21 +1,20 @@
 import { Link } from "react-router-dom";
-
-const todayInfo = {
-  day: "Wednesday",
-  date: "March 11",
-  city: "Toronto",
-  temp: "3°C",
-  condition: "Snow",
-};
+import { useWeather } from "../context/useWeather";
 
 export default function Home() {
+  const { weather, loading, error } = useWeather();
+
+  const now = new Date();
+  const day = now.toLocaleDateString(undefined, { weekday: "long" });
+  const date = now.toLocaleDateString(undefined, { month: "long", day: "numeric" });
+
   return (
     <section className="home-page">
       <div className="hero-grid">
         <div className="hero-left">
           <p className="eyebrow">SMART OUTFIT RECOMMENDATION</p>
           <h1 className="hero-title">
-            Dress smarter with weather-aware wardrobe suggestions.
+            Dress smarter with weather-aware wardrdfobe suggestions.
           </h1>
           <p className="hero-text">
             LVYVN helps users manage their wardrobe, add clothing items, and get outfit
@@ -53,29 +52,46 @@ export default function Home() {
               <span>Today&apos;s Context</span>
               <span className="status-dot"></span>
             </div>
-            <h3>{todayInfo.day}, {todayInfo.date}</h3>
-            <p>{todayInfo.city}</p>
-            <div className="weather-chip-row">
-              <span className="weather-chip">{todayInfo.temp}</span>
-              <span className="weather-chip">{todayInfo.condition}</span>
-            </div>
+            <h3>{day}, {date}</h3>
+
+            {/* Weather panel reflects the live API data and its loading state. */}
+            {loading && <p className="soft-text">Loading live weather…</p>}
+
+            {!loading && error && (
+              <p className="soft-text">Weather unavailable right now.</p>
+            )}
+
+            {!loading && !error && weather && (
+              <>
+                <p>{weather.city}</p>
+                <div className="weather-chip-row">
+                  <span className="weather-chip">{Math.round(weather.temperature)}°C</span>
+                  {weather.feelsLike != null && (
+                    <span className="weather-chip">
+                      Feels {Math.round(weather.feelsLike)}°C
+                    </span>
+                  )}
+                  <span className="weather-chip">{weather.rawCondition}</span>
+                </div>
+              </>
+            )}
           </div>
 
           <div className="hero-panel outfit-preview">
             <div className="panel-header">
-              <span>Suggested Look</span>
-              <span className="soft-text">Casual / Cold</span>
+              <span>How Recommendations Work</span>
+              <span className="soft-text">Weather + Occasion</span>
             </div>
 
-            <div className="outfit-stack">
-              <div className="outfit-pill">Grey Hoodie</div>
-              <div className="outfit-pill">Black Jeans</div>
-              <div className="outfit-pill">White Sneakers</div>
-              <div className="outfit-pill">Beige Coat</div>
-            </div>
+            <ol className="how-it-works-steps">
+              <li>Add your clothes to the wardrobe</li>
+              <li>We pull in your local weather</li>
+              <li>Pick an occasion and generate an outfit</li>
+              <li>Like or dislike to improve future picks</li>
+            </ol>
 
             <p className="soft-text">
-              Generated from wardrobe items, filtered by weather and occasion.
+              Outfits are generated from your wardrobe items, filtered by weather and occasion.
             </p>
           </div>
         </div>

@@ -1,65 +1,83 @@
 import { useState } from "react";
 import WeatherBox from "../components/WeatherBox";
-import { getRecommendation } from "../services/api";
-
-const defaultWeather = {
-  city: "Toronto",
-  day: "Wednesday",
-  date: "March 11",
-  temp: "3°C",
-  condition: "Snow",
-};
-
-function getWeatherCategory(tempString) {
-  const numericTemp = parseInt(tempString, 10);
-  if (Number.isNaN(numericTemp)) return "cold";
-  return numericTemp >= 20 ? "hot" : "cold";
-}
-
-function buildStyleNote(items, occasion, weatherCategory) {
-  if (!items || items.length === 0) {
-    return "No matching outfit was found for the selected occasion and weather.";
-  }
-
-  const categories = items.map((item) => item.category).join(", ");
-  return `This ${occasion} outfit is selected for ${weatherCategory} weather using your available wardrobe categories: ${categories}.`;
-}
+import { getRecommendation, submitFeedback } from "../services/api";
+import { useWeather } from "../context/useWeather";
 
 export default function Recommendation() {
+  const { weather, loading: weatherLoading, error: weatherError } = useWeather();
+
   const [occasion, setOccasion] = useState("casual");
-  const [outfit, setOutfit] = useState([]);
-  const [feedback, setFeedback] = useState("");
+  const [outfit, setOutfit] = useState(null); // recommendedOutfit object from backend
+  const [reasoning, setReasoning] = useState([]);
+  const [confidence, setConfidence] = useState(null); // ML confidence score (0-1)
+  const [feedback, setFeedback] = useState(""); // status message after liking/disliking
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [hasGenerated, setHasGenerated] = useState(false);
 
+  // The backend's /weather returns one of "cold" / "mild" / "hot", and
+  // /recommend accepts the same three values - so we pass it straight through.
+  const weatherCategory = weather ? weather.tempCategory : null;
+
   async function handleGenerate() {
+    if (!weather) {
+      setError("Weather data isn't loaded yet. Please wait a moment and try again.");
+      return;
+    }
+
     try {
       setLoading(true);
       setError("");
       setFeedback("");
       setHasGenerated(true);
+      setOutfit(null);
+      setReasoning([]);
+      setConfidence(null);
 
+      // backend hard-set rule: it expects weatherCategory, occasion, and listOfClothes
       const payload = {
-        weather: getWeatherCategory(defaultWeather.temp),
+        weatherCategory,
         occasion,
         listOfClothes: ["top", "bottom", "outerwear", "shoes"],
       };
 
       const data = await getRecommendation(payload);
-      setOutfit(Array.isArray(data) ? data : []);
-    } catch (err) {
-      setError("Could not connect to the backend server to generate an outfit. Make sure the API is running.");
-      setOutfit([]);
+
+      // backend returns { recommendedOutfit, confidenceScore, reasoning }
+      setOutfit(data.recommendedOutfit || null);
+      setReasoning(Array.isArray(data.reasoning) ? data.reasoning : []);
+      setConfidence(typeof data.confidenceScore === "number" ? data.confidenceScore : null);
+    } catch {
+      setError("Could not generate an outfit. Make sure the backend API is running and your wardrobe has items.");
+      setOutfit(null);
     } finally {
       setLoading(false);
     }
   }
 
-  const topItem = outfit.find((item) => item.category === "top");
-  const bottomItem = outfit.find((item) => item.category === "bottom");
-  const shoesItem = outfit.find((item) => item.category === "shoes");
-  const outerwearItem = outfit.find((item) => item.category === "outerwear");
+  async function handleFeedback(liked) {
+    if (!outfit) return;
+
+    try {
+      setFeedback(liked ? "Saving your like…" : "Saving your dislike…");
+
+      await submitFeedback({
+        liked,
+        id: outfit.outfit_id || null,
+        weather: weatherCategory,
+        occasion,
+      });
+
+      setFeedback(liked ? "Thanks! Glad you liked it." : "Got it - we'll adjust future picks.");
+    } catch {
+      setFeedback("Couldn't save your feedback. Please try again.");
+    }
+  }
+
+  const topItem = outfit?.top;
+  const bottomItem = outfit?.bottom;
+  const shoesItem = outfit?.shoes;
+  const outerwearItem = outfit?.outerwear;
 
   return (
     <section>
@@ -72,7 +90,7 @@ export default function Recommendation() {
       </div>
 
       <div className="recommend-layout">
-        <WeatherBox weather={defaultWeather} />
+        <WeatherBox weather={weather} loading={weatherLoading} error={weatherError} />
 
         <div className="form-card">
           <label>
@@ -83,7 +101,12 @@ export default function Recommendation() {
             </select>
           </label>
 
-          <button className="primary-btn" onClick={handleGenerate} disabled={loading} style={{ width: '100%', marginTop: 'auto' }}>
+          <button
+            className="primary-btn"
+            onClick={handleGenerate}
+            disabled={loading || weatherLoading}
+            style={{ width: "100%", marginTop: "auto" }}
+          >
             {loading ? "Generating..." : "Generate Outfit"}
           </button>
         </div>
@@ -93,7 +116,7 @@ export default function Recommendation() {
         <div className="panel-header">
           <span>Suggested Outfit</span>
           <span className="mini-soft">
-            {getWeatherCategory(defaultWeather.temp)} / {occasion}
+            {weatherCategory ? `${weatherCategory} / ${occasion}` : occasion}
           </span>
         </div>
 
@@ -112,16 +135,16 @@ export default function Recommendation() {
           </div>
         )}
 
-        {!error && !loading && hasGenerated && outfit.length === 0 && (
+        {!error && !loading && hasGenerated && !outfit && (
           <div className="empty-state">
             <p style={{ fontWeight: 600, color: 'var(--text-main)', marginBottom: '8px' }}>No matching outfit found.</p>
             <p className="info-text">
-              We couldn't find a complete outfit for a {getWeatherCategory(defaultWeather.temp)} day and a {occasion} occasion. Try adding more items to your wardrobe!
+              We couldn't find a complete outfit for a {weatherCategory} day and a {occasion} occasion. Try adding more items to your wardrobe!
             </p>
           </div>
         )}
 
-        {outfit.length > 0 && (
+        {outfit && (
           <>
             <div className="outfit-visual-grid">
               <div className="outfit-box">
@@ -165,23 +188,34 @@ export default function Recommendation() {
               </div>
             </div>
 
-            <div className="style-note-box">
-              <span className="mini-label">STYLE NOTE</span>
-              <p>{buildStyleNote(outfit, occasion, getWeatherCategory(defaultWeather.temp))}</p>
+            {reasoning.length > 0 && (
+              <div className="style-note-box">
+                <span className="mini-label">WHY THIS OUTFIT</span>
+                <ul className="reasoning-list">
+                  {reasoning.map((reason, index) => (
+                    <li key={index}>{reason}</li>
+                  ))}
+                </ul>
+                {confidence != null && (
+                  <p className="confidence-text">
+                    Match confidence: {Math.round(confidence * 100)}%
+                  </p>
+                )}
+              </div>
+            )}
+
+            <div className="feedback-row">
+              <button className="secondary-btn" onClick={() => handleFeedback(true)}>
+                Like
+              </button>
+              <button className="secondary-btn" onClick={() => handleFeedback(false)}>
+                Dislike
+              </button>
             </div>
+
+            {feedback && <p className="info-text">{feedback}</p>}
           </>
         )}
-
-        <div className="feedback-row">
-          <button className="secondary-btn" onClick={() => setFeedback("Liked!")}>
-            Like
-          </button>
-          <button className="secondary-btn" onClick={() => setFeedback("Disliked!")}>
-            Dislike
-          </button>
-        </div>
-
-        {feedback && <p className="info-text">{feedback}</p>}
       </div>
     </section>
   );
