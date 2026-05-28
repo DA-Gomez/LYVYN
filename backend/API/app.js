@@ -1,344 +1,406 @@
 import express from "express";
 import cors from "cors";
+ import db from "../config/firebase.js";
+import dotenv from "dotenv";
+import { spawn } from "child_process";
 
+dotenv.config();
 const server = express();
 
 server.use(cors());
 server.use(express.json());
 
-const clothes = [
-{
-  id: 1, 
-category: "shoes",
- type: "leather",
- warmth: "medium",
- formality: "formal",
-colorGroup:"warm"
-}, 
-{
-  id: 2 , 
-category: "bottom",
- type:"jeans",
- warmth: "medium",
- formality: "casual",
-colorGroup: "cool"
-}, 
-{
-  id: 3 ,  
-category: "outerwear",
- type: "hoodie",
- warmth: "medium",
- formality: "casual",
-colorGroup: "cool"
-}, 
+function normalizeWeather(data) {
+  const temp = data.main.temp;
+  const rawCondition = data.weather[0].main.toLowerCase();
 
-{
-  id: 4,
-category: "top",
- type: "hoodie",
- warmth:  "medium",
- formality: "casual",
-colorGroup: "cool"
-}, 
+  let tempCategory = "mild";
+  if (temp < 10) tempCategory = "cold";
+  else if (temp >= 24) tempCategory = "hot";
 
-{
-  id: 5,
-category: "top",
- type:  "jeans",
- warmth: "light",
- formality: "casual",
-colorGroup: "neutral"
-}, 
+  let conditionCategory = "dry";
+  if (rawCondition.includes("rain") || rawCondition.includes("drizzle")) {
+    conditionCategory = "rainy";
+  } else if (rawCondition.includes("snow")) {
+    conditionCategory = "snowy";
+  }
 
-{
-  id: 6,
-  category: "bottom",
- type:   "jeans",
- warmth: "heavy",
- formality: "casual",
-colorGroup: "warm"
-},
-
-{
-  id: 7, 
-   category:  "bottom",
- type:  "jeans",
- warmth:  "heavy",
- formality: "casual",
-colorGroup:  "cool"
-},
-{
-  id: 8,
-  category: "shoes",
-  type: "sneakers",
-  warmth: "medium",
-  formality: "casual",
-  colorGroup: "cool"
-},
-{
-  id: 9,
-  category: "top",
-  type: "hoodie",
-  warmth: "heavy",
-  formality: "casual",
-  colorGroup: "warm"
-},
-{
-  id: 10,
-  category: "top",
-  type: "hoodie",
-  warmth: "light",
-  formality: "casual",
-  colorGroup: "neutral"
-},
-{
-  id: 11,
-  category: "top",
-  type: "leather",
-  warmth: "medium",
-  formality: "formal",
-  colorGroup: "cool"
-},
-{
-  id: 12,
-  category: "bottom",
-  type: "jeans",
-  warmth: "light",
-  formality: "casual",
-  colorGroup: "neutral"
-},
-{
-  id: 13,
-  category: "bottom",
-  type: "jeans",
-  warmth: "medium",
-  formality: "formal",
-  colorGroup: "cool"
-},
-{
-  id: 14,
-  category: "bottom",
-  type: "jeans",
-  warmth: "heavy",
-  formality: "formal",
-  colorGroup: "warm"
-},
-{
-  id: 15,
-  category: "shoes",
-  type: "leather",
-  warmth: "medium",
-  formality: "formal",
-  colorGroup: "neutral"
-},
-{
-  id: 16,
-  category: "shoes",
-  type: "sneakers",
-  warmth: "light",
-  formality: "casual",
-  colorGroup: "cool"
-},
-{
-  id: 17,
-  category: "shoes",
-  type: "sneakers",
-  warmth: "heavy",
-  formality: "casual",
-  colorGroup: "warm"
-},
-{
-  id: 18,
-  category: "outerwear",
-  type: "hoodie",
-  warmth: "heavy",
-  formality: "casual",
-  colorGroup: "neutral"
-},
-{
-  id: 19,
-  category: "outerwear",
-  type: "leather",
-  warmth: "medium",
-  formality: "formal",
-  colorGroup: "cool"
-},
-{
-  id: 20,
-  category: "outerwear",
-  type: "hoodie",
-  warmth: "light",
-  formality: "casual",
-  colorGroup: "warm"
-}];
-
-
-function getclothes(){
- 		return clothes;
+  return {
+    city: data.name,
+    temperature: temp,
+    rawCondition: data.weather[0].main,
+    tempCategory,
+    conditionCategory,
+    summary: `${tempCategory}, ${temp}°C, ${data.weather[0].main}`,
+  };
 }
 
+function validateCloth(newCloth) {
+  const validCategories = ["shoes", "bottom", "outerwear", "top"];
+  const validWarmth = ["light", "medium", "heavy"];
+  const validFormality = ["formal", "casual"];
+  const validColorGroups = ["warm", "cool", "neutral"];
 
-function addclothes(newCloth){
-  
-  const validCategories = clothes.map(clothItem => clothItem.category);
-  const validWarmth = clothes.map(clothItem => clothItem.warmth);
-  const validFormality = clothes.map(clothItem => clothItem.formality);
-  const validColorGroups = clothes.map(clothItem => clothItem.colorGroup);
-  const validTypes = clothes.map(clothItem => clothItem.type);
-  const UsedId = clothes.map(clothItem => clothItem.id);
+  if (!newCloth) return false;
+  if (!validCategories.includes(newCloth.category)) return false;
+  if (!newCloth.type || typeof newCloth.type !== "string") return false;
+  if (!validWarmth.includes(newCloth.warmth)) return false;
+  if (!validFormality.includes(newCloth.formality)) return false;
+  if (!validColorGroups.includes(newCloth.colorGroup)) return false;
 
- 
-    if(!newCloth){
-      return false;
-    }
-    if (!Number.isInteger(newCloth.id)  || UsedId.includes(newCloth.id)){
-      return false;
-    }if (!validCategories.includes(newCloth.category)){
-      return false;
-    }if (!validTypes.includes(newCloth.type)){
-      return false;
-    }if (!validWarmth.includes(newCloth.warmth)){
-      return false;
-    }if (!validFormality.includes(newCloth.formality)){
-      return false;
-    }if (!validColorGroups.includes(newCloth.colorGroup)){
-      return false;
-    }
-
-  clothes.push(newCloth);
   return true;
 }
 
-  const newId =
-    clothes.length > 0 ? Math.max(...clothes.map((item) => item.id)) + 1 : 1;
+async function getClothesFromDB() {
+  const snapshot = await db.collection("clothes").get();
+  return snapshot.docs.map((doc) => ({
+    id: doc.id,
+    ...doc.data(),
+  }));
+}
 
-  const clothWithId = {
-    id: newId,
+async function addClothToDB(newCloth) {
+  if (!validateCloth(newCloth)) {
+    return false;
+  }
+
+  const clothData = {
     ...newCloth,
     type: newCloth.type.toLowerCase().trim(),
   };
 
-  clothes.push(clothWithId);
-  return clothWithId;
+  const docRef = await db.collection("clothes").add(clothData);
+
+  return {
+    id: docRef.id,
+    ...clothData,
+  };
 }
 
-server.get("/clothes", (req, res) => {
-  console.log("GET /clothes was called");
-  res.json(getclothes());
-});
+// ML integration (more in depth explanations found in test.js) >> DG
+const executePython = async (script, args) => {
+  const input = args.map(arg => arg.toString());
+  const py = spawn("python", [script, ...input]);
+  // const py = spawn("venv/Scripts/python", [script, ...input]);
 
-server.post("/clothes", (req, res) => {
-  console.log("POST /clothes was called");
+  const result = await new Promise((resolve, reject) => {
+    let output;
 
-server.listen(3000, () => {
-  console.log("Server running on http://localhost:3000");
-});
+    py.stdout.on('data', (data) => {
+      try {
+        output = JSON.parse(data.toString()); 
+      } catch (err) {
+        console.error("Parse error:", data.toString());
+      }
+    })
 
-function recommendClothes(userInput) {
-  if (!userInput) {
-    return false;
-  }
+    py.stderr.on("data", (data) => {
+      console.error('python error: ', data.toString());
+      reject('error in ', script);
+    })
 
-function getOutfits(filteredClothes, outWear){
+    py.on("exit", (code) => {
+      resolve(output);
+    })
+  })
 
- var tops = filteredClothes.filter(c => c.category === "top");
-      var bottoms = filteredClothes.filter(c => c.category === "bottom");
-      var shoes = filteredClothes.filter(c => c.category === "shoes");
-      var outerwear = filteredClothes.filter(c => c.category === "outerwear");
+  return result;
+};
 
-      const outfits = [];
+function getOutfits(filteredClothes, requiresOuterwear) {
+  const tops = filteredClothes.filter((c) => c.category === "top");
+  const bottoms = filteredClothes.filter((c) => c.category === "bottom");
+  const shoes = filteredClothes.filter((c) => c.category === "shoes");
+  const outerwear = filteredClothes.filter((c) => c.category === "outerwear");
 
-  if (outWear){
-      for (let t of tops){
-        for (let b of bottoms){
-          for (let s of shoes){
-            for (let o of outerwear){
-              outfits.push({ top: t, bottom: b, shoes: s, outerwear: o });
-            }
+  const outfits = [];
+
+  for (const t of tops) {
+    for (const b of bottoms) {
+      for (const s of shoes) {
+        if (requiresOuterwear) {
+          for (const o of outerwear) {
+            outfits.push({ top: t, bottom: b, shoes: s, outerwear: o });
           }
+        } else {
+          outfits.push({ top: t, bottom: b, shoes: s });
         }
       }
     }
-  else {
-      for (let t of tops){
-        for (let b of bottoms){
-          for (let s of shoes){
-              outfits.push({ top: t, bottom: b, shoes: s });
-          }
-        }
-      }
   }
   return outfits;
 }
 
+function ruleFiltering(weatherCategory, occasion, listOfClothes, clothes) {
+  let filteredClothes = clothes.filter((c) => listOfClothes.includes(c.id) || listOfClothes.includes(c.category));
+  let requiresOuterwear = false;
 
-
-
-
-function ruleFiltering(weather, occasion, listOfClothes){
-
- var filteredClothes = clothes.filter(c => listOfClothes.includes(c.id));
-
- var outWear = false;
-
-if(weather === "cold" && occasion === "formal"){
-  filteredClothes = filteredClothes.filter(c => (c.warmth === "heavy" || c.warmth === "medium") && c.formality === "formal");
-  outWear = true;
-}
-else if(weather === "hot" && occasion === "formal"){
-  filteredClothes = filteredClothes.filter(c => (c.warmth === "light" || c.warmth === "medium") && c.formality === "formal");
-}
-else if(weather === "cold" && occasion === "casual"){
-  filteredClothes = filteredClothes.filter(c => (c.warmth === "heavy" || c.warmth === "medium") && c.formality === "casual");
-  outWear = true;
-}
-else if(weather === "hot" && occasion === "casual"){
-  filteredClothes = filteredClothes.filter(c => (c.warmth === "light" || c.warmth === "medium") && c.formality === "casual");
-}
-
-
- return {filteredClothes , outWear};
-
-}
-
-
-function recommendClothes(UserInput){
-
-  if (!weather || !occasion || !Array.isArray(listOfClothes)) {
-    return false;
+  if (weatherCategory === "cold") {
+    filteredClothes = filteredClothes.filter((c) => c.warmth === "heavy" || c.warmth === "medium");
+    requiresOuterwear = true;
+  } 
+  else if (weatherCategory === "hot") {
+    filteredClothes = filteredClothes.filter((c) => c.warmth === "light" || c.warmth === "medium");
   }
-  
-var weather = UserInput.weather;
-var occasion = UserInput.occasion;
-var listOfClothes = UserInput.listOfClothes;
 
+  //filter by occasion (either "casual" or "formal")
+  filteredClothes = filteredClothes.filter((c) => c.formality === occasion);
 
-var {filteredClothes: clothesList, outWear } = ruleFiltering(weather, occasion, listOfClothes);
-
-var outfit = getOutfits(clothesList, outWear);
-
-if (outfit.length === 0) {
-  return { message: "No match found" };
+  return { filteredClothes, requiresOuterwear };
 }
 
-return outfit;
+// async function recommendClothes(userInput) {
+//   if (!userInput) {
+//     return false;
+//   }
 
-  return recommendedOutfit;
-}
+//   const weather = userInput.weather;
+//   const occasion = userInput.occasion;
+//   const listOfClothes = userInput.listOfClothes;
 
+//   if (!weather || !occasion || !Array.isArray(listOfClothes)) {
+//     return false;
+//   }
 
-server.post("/recommend", (req,res) => {
-console.log("POST /recommend was called");
-const recOutfit = recommendClothes(req.body)
+//   const clothes = await getClothesFromDB();
+//   const { filteredClothes: filteredItems, outWear } = ruleFiltering(
+//     weather,
+//     occasion,
+//     listOfClothes,
+//     clothes
+//   );
 
-  const recOutfit = recommendClothes(req.body);
+//   const outfits = getOutfits(filteredItems, outWear);
 
-  if (recOutfit === false) {
-    res.status(400).json({ error: "No user input" });
-  } else {
-    res.status(201).json(recOutfit);
+//   if (outfits.length === 0) {
+//     return { message: "No match found" };
+//   }
+
+//   return outfits;
+// }
+
+server.get("/clothes", async (req, res) => {
+  console.log("GET /clothes was called");
+
+  const clothes = await getClothesFromDB();
+  res.json(clothes);
+});
+
+server.post("/clothes", async (req, res) => {
+  console.log("POST /clothes was called");
+
+  try {
+    const createdCloth = await addClothToDB(req.body);
+
+    if (createdCloth) {
+      res.status(201).json(createdCloth);
+    } else {
+      res.status(400).json({ error: "Invalid cloth data" });
+    }
+  } catch (error) {
+    console.error("Error adding cloth:", error);
+    res.status(500).json({ error: "Failed to add clothing item" });
   }
 });
+
+// call ML model to recommend outfit using the actual py file >> DG
+server.post("/recommend", async (req, res) => {
+  console.log("POST /recommend was called");
+
+  try {
+    const { weatherCategory, occasion, listOfClothes } = req.body;
+
+    if (!weatherCategory || !occasion) {
+      return res.status(400).json({ error: "Missing weatherCategory or occasion in request" });
+    }
+
+    const clothes = await getClothesFromDB();
+
+    if (clothes.length === 0) {
+      return res.status(404).json({ error: "Wardrobe is empty" });
+    }
+
+    const { filteredClothes, requiresOuterwear } = ruleFiltering(
+      weatherCategory,
+      occasion,
+      listOfClothes,
+      clothes
+    );
+
+    const validOutfits = getOutfits(filteredClothes, requiresOuterwear);
+
+    if (validOutfits.length === 0) {
+      return res.status(404).json({ message: "No match found for this weather/occasion" });
+    }
+
+    const mlFormattedOutfits = validOutfits.map((outfit, index) => {
+      let heavyCount = 0;
+
+      Object.values(outfit).forEach((item) => {
+        if (item && item.warmth === "heavy") {
+          heavyCount++;
+        }
+      });
+
+      return {
+        outfit_id: `outfit_${index}`,
+        is_cold: weatherCategory === "cold" ? 1 : 0,
+        has_outerwear: outfit.outerwear ? 1 : 0,
+        heavy_items_count: heavyCount,
+        is_formal: occasion === "formal" ? 1 : 0,
+        formality_match: 1,
+        time_since_last_worn: Math.floor(Math.random() * 10)
+      };
+    });
+
+    const pythonProcess = spawn("python", [
+      "ml/model.py",
+      JSON.stringify(mlFormattedOutfits)
+    ]);
+
+    let pythonData = "";
+    let pythonError = "";
+
+    pythonProcess.stdout.on("data", (data) => {
+      pythonData += data.toString();
+    });
+
+    pythonProcess.stderr.on("data", (data) => {
+      pythonError += data.toString();
+    });
+
+    pythonProcess.on("close", () => {
+      if (pythonError) {
+        console.error("Python Error:", pythonError);
+
+        return res.status(500).json({
+          error: "ML model failed",
+          details: pythonError
+        });
+      }
+
+      try {
+        const mlResponse = JSON.parse(pythonData);
+
+        if (mlResponse.error) {
+          return res.status(500).json({
+            error: mlResponse.errorMessage
+          });
+        }
+
+        const bestOutfitData = mlResponse.best_outfit;
+
+        const outfitIndex = parseInt(bestOutfitData.outfit_id.split("_")[1]);
+
+        const finalRecommendation = validOutfits[outfitIndex];
+
+        return res.status(200).json({
+          recommendedOutfit: finalRecommendation,
+          confidenceScore: bestOutfitData.ml_score,
+          allScoredOutfits: mlResponse.all_scored_outfits
+        });
+
+      } catch (err) {
+        console.error("JSON Parse Error:", err);
+
+        return res.status(500).json({
+          error: "Failed to parse ML response"
+        });
+      }
+    });
+
+  } catch (error) {
+    console.error("Error generating recommendation:", error);
+
+    return res.status(500).json({
+      error: "Failed to generate recommendation"
+    });
+  }
+});
+
+server.post("/feedback", async (req, res) => {
+  console.log("POST /feedback was called");
+
+  try {
+    const feedback = req.body;
+
+    if (!feedback || typeof feedback.liked !== "boolean") {
+      return res.status(400).json({ error: "Invalid feedback data" });
+    }
+
+    const feedbackData = {
+      ...feedback,
+      timestamp: new Date().toISOString(),
+    };
+
+    const docRef = await db.collection("feedback").add(feedbackData);
+
+    res.status(201).json({
+      id: docRef.id,
+      ...feedbackData,
+    });
+  } catch (error) {
+    console.error("Error saving feedback:", error);
+    res.status(500).json({ error: "Failed to save feedback" });
+  }
+});
+
+server.get("/weather", async (req, res) => {
+  console.log("GET /weather was called");
+
+  try {
+    const city = req.query.city || "Toronto";
+    const apiKey = process.env.OPENWEATHER_API_KEY;
+
+    const response = await fetch(
+      `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(city)}&appid=${apiKey}&units=metric`
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return res
+        .status(400)
+        .json({ error: "Failed to fetch weather", details: data });
+    }
+
+    const normalized = normalizeWeather(data);
+    res.json(normalized);
+  } catch (error) {
+    console.error("Weather route error:", error);
+    res.status(500).json({ error: "Weather route failed" });
+  }
+});
+
+//edit/update clothing item << DG
+server.put("/clothes/:id", async (req, res) => {
+  console.log(`PUT /clothes/${req.params.id} was called`);
+
+  try {
+    let id = req.params.id;
+    const data = req.body; //updated data
+
+    await db.collection("clothes").doc(id).update(data);
+    res.json({ message: "Clothing item updated successfully", id });
+  } catch (error) {
+    console.error("Error updating clothing: ", error);
+    res.status(500).json({ error: "Failed to update clothing" });
+  }
+})
+
+server.delete("/clothes/:id", async (req, res) => {
+  console.log(`DELETE /clothes/${req.params.id} was called`);
+
+  try {
+    let id = req.params.id;
+
+    await db.collection("clothes").doc(id).delete();
+    res.json({ message: "Clothing item deleted successfully", id });
+  } catch (error) {
+    console.error("Error updating clothing: ", error);
+    res.status(500).json({ error: "Failed to update clothing" });
+  }
+})
 
 server.listen(3000, () => {
   console.log("Server running on http://localhost:3000");
