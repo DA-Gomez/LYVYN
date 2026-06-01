@@ -3,8 +3,13 @@ import cors from "cors";
  import db from "../config/firebase.js";
 import dotenv from "dotenv";
 import { spawn } from "child_process";
+import { fileURLToPath } from "url";
+import path from "path";
 
-dotenv.config();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+dotenv.config({ path: path.resolve(__dirname, "../../.env") });
+
 const server = express();
 
 server.use(cors());
@@ -28,6 +33,7 @@ function normalizeWeather(data) {
   return {
     city: data.name,
     temperature: temp,
+    feelsLike: data.main.feels_like,
     rawCondition: data.weather[0].main,
     tempCategory,
     conditionCategory,
@@ -71,10 +77,7 @@ async function addClothToDB(newCloth) {
 
   const docRef = await db.collection("clothes").add(clothData);
 
-  return {
-    id: docRef.id,
-    ...clothData,
-  };
+  return { id: docRef.id, ...clothData };
 }
 
 // ML integration (more in depth explanations found in test.js) >> DG
@@ -96,7 +99,7 @@ const executePython = async (script, args) => {
 
     py.stderr.on("data", (data) => {
       console.error('python error: ', data.toString());
-      reject('error in ', script);
+      reject(`error in ${script}`);
     })
 
     py.on("exit", (code) => {
@@ -138,7 +141,10 @@ function ruleFiltering(weatherCategory, occasion, listOfClothes, clothes) {
   if (weatherCategory === "cold") {
     filteredClothes = filteredClothes.filter((c) => c.warmth === "heavy" || c.warmth === "medium");
     requiresOuterwear = true;
-  } 
+  }
+  else if (weatherCategory === "mild") {
+    filteredClothes = filteredClothes.filter((c) => c.warmth === "light" || c.warmth === "medium");
+  }
   else if (weatherCategory === "hot") {
     filteredClothes = filteredClothes.filter((c) => c.warmth === "light" || c.warmth === "medium");
   }
@@ -148,36 +154,6 @@ function ruleFiltering(weatherCategory, occasion, listOfClothes, clothes) {
 
   return { filteredClothes, requiresOuterwear };
 }
-
-// async function recommendClothes(userInput) {
-//   if (!userInput) {
-//     return false;
-//   }
-
-//   const weather = userInput.weather;
-//   const occasion = userInput.occasion;
-//   const listOfClothes = userInput.listOfClothes;
-
-//   if (!weather || !occasion || !Array.isArray(listOfClothes)) {
-//     return false;
-//   }
-
-//   const clothes = await getClothesFromDB();
-//   const { filteredClothes: filteredItems, outWear } = ruleFiltering(
-//     weather,
-//     occasion,
-//     listOfClothes,
-//     clothes
-//   );
-
-//   const outfits = getOutfits(filteredItems, outWear);
-
-//   if (outfits.length === 0) {
-//     return { message: "No match found" };
-//   }
-
-//   return outfits;
-// }
 
 server.get("/clothes", async (req, res) => {
   console.log("GET /clothes was called");
@@ -203,6 +179,28 @@ server.post("/clothes", async (req, res) => {
   }
 });
 
+function generateReasoning(weatherCategory, occasion, outfit, score) {
+  let reasons = [];
+
+  if (weatherCategory === "cold") {
+    reasons.push("Includes warm layers and outerwear to protect against the cold.");
+  }
+  else if (weatherCategory === "hot") {
+    reasons.push("Features light, breathable items suited for hot weather.");
+  }
+  else if (weatherCategory === "mild") {
+    reasons.push("Perfectly balanced for mild, comfortable weather.");
+  }
+
+  reasons.push(`Carefully matched to fit your ${occasion} dress code.`);
+
+  if (score > 0.75) {
+    reasons.push("Highly rated based on your personal style and past feedback.");
+  }
+  
+  return reasons;
+}
+
 // call ML model to recommend outfit using the actual py file >> DG
 server.post("/recommend", async (req, res) => {
   console.log("POST /recommend was called");
@@ -212,6 +210,11 @@ server.post("/recommend", async (req, res) => {
 
     if (!weatherCategory || !occasion) {
       return res.status(400).json({ error: "Missing weatherCategory or occasion in request" });
+    }
+
+    const validCategories = ["cold", "mild", "hot"];
+    if (!validCategories.includes(weatherCategory)) {
+      return res.status(400).json({ error: `Invalid weatherCategory. Must be one of: ${validCategories.join(", ")}` });
     }
 
     const clothes = await getClothesFromDB();
@@ -336,8 +339,10 @@ server.post("/feedback", async (req, res) => {
     const docRef = await db.collection("feedback").add(feedbackData);
 
     res.status(201).json({
-      id: docRef.id,
       ...feedbackData,
+      id: docRef.id,
+      weather: feedback.weather ?? null, //in case the request comes with such data
+      occasion: feedback.occasion ?? null,
     });
   } catch (error) {
     console.error("Error saving feedback:", error);
