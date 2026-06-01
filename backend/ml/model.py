@@ -1,3 +1,4 @@
+import os
 import pandas as pd
 import numpy as np
 from sklearn.linear_model import LogisticRegression
@@ -7,7 +8,12 @@ import json
 
 try: 
   # data = pd.read_csv("../data.csv") #uncomment this if youre running the python file itself
-  data = pd.read_csv("data.csv") #uncomment this if youre running via express
+ # data = pd.read_csv("data.csv") #uncomment this if youre running via express
+
+  current_dir = os.path.dirname(os.path.abspath(__file__))
+  data_path = os.path.join(current_dir, "data.csv")
+  data = pd.read_csv(data_path)
+    
 except:
   print(json.dumps({
     "error": True, 
@@ -21,35 +27,50 @@ classification_data = data['liked']
 model = LogisticRegression()
 model.fit(input_data, classification_data)
 
-#Recieves data from express and returns it as a JSON
-#we will be using command line arguments to pass data from express to python
-if len(sys.argv) == 7:
-  res = {
-    "result": 0,
-    "error": False, 
-    "errorMessage": "",
-  }
-  
-  try:
-    is_cold = int(sys.argv[1])
-    has_outerwear = int(sys.argv[2])
-    heavy_items_count = int(sys.argv[3])
-    is_formal = int(sys.argv[4])
-    formality_match = int(sys.argv[5])
-    time_since_last_worn = int(sys.argv[6])
-    
-    outfit = np.array([[is_cold, has_outerwear, heavy_items_count, is_formal, formality_match, time_since_last_worn]])
-    probability_liked = model.predict_proba(outfit)[0][1]
+# Receives an  outfits from Express as one JSON string.
+# we will scores each outfit and returns the best one.
 
-    res["result"] = probability_liked
+if len(sys.argv) == 2:
+  res = {
+    "error": False,
+    "errorMessage": "",
+    "best_outfit": None,
+    "all_scored_outfits": []
+  }
+
+  try:
+    outfits = json.loads(sys.argv[1])
+
+    for outfit in outfits:
+      features = np.array([[
+        int(outfit["is_cold"]),
+        int(outfit["has_outerwear"]),
+        int(outfit["heavy_items_count"]),
+        int(outfit["is_formal"]),
+        int(outfit["formality_match"]),
+        int(outfit["time_since_last_worn"])
+      ]])
+
+      probability_liked = model.predict_proba(features)[0][1]
+
+      outfit["ml_score"] = round(float(probability_liked), 2)
+      res["all_scored_outfits"].append(outfit)
+
+    res["all_scored_outfits"].sort(
+      key=lambda outfit: outfit["ml_score"],
+      reverse=True
+    )
+
+    res["best_outfit"] = res["all_scored_outfits"][0]
+
   except Exception as e:
     res["error"] = True
     res["errorMessage"] = str(e)
 
   print(json.dumps(res))
 
-else: 
+else:
   print(json.dumps({
-    "error": True, 
-    "errorMessage": "Expected 6 arguments"
+    "error": True,
+    "errorMessage": "Expected 1 JSON argument containing an array of outfits"
   }))
