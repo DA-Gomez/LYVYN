@@ -402,6 +402,37 @@ server.delete("/clothes/:id", async (req, res) => {
   }
 })
 
+// edit/update clothing item << DG
+server.put("/clothes/:id", async (req, res) => {
+  console.log(`PUT /clothes/${req.params.id} was called`);
+
+  try {
+    let id = req.params.id;
+    const data = req.body; //updated data
+
+    await db.collection("clothes").doc(id).update(data);
+    res.json({ message: "Clothing item updated successfully", id });
+  } catch (error) {
+    console.error("Error updating clothing: ", error);
+    res.status(500).json({ error: "Failed to update clothing" });
+  }
+})
+
+// delete clothing item << DG
+server.delete("/clothes/:id", async (req, res) => {
+  console.log(`DELETE /clothes/${req.params.id} was called`);
+
+  try {
+    let id = req.params.id;
+
+    await db.collection("clothes").doc(id).delete();
+    res.json({ message: "Clothing item deleted successfully", id });
+  } catch (error) {
+    console.error("Error updating clothing: ", error);
+    res.status(500).json({ error: "Failed to update clothing" });
+  }
+})
+
 server.listen(3000, () => {
   console.log("Server running on http://localhost:3000");
 });
