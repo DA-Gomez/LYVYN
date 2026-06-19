@@ -63,9 +63,9 @@ export default function Recommendation() {
 
       await submitFeedback({
         liked,
-        id: outfit.outfit_id || null,
         weather: weatherCategory,
         occasion,
+        outfit,
       });
 
       setFeedback(liked ? "Thanks! Glad you liked it." : "Got it - we'll adjust future picks.");

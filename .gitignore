@@ -1,5 +1,8 @@
 node_modules
 .env
 backend/config/serviceAccountKey.json
-backend/config/serviceAccountKey.json
 serviceAccountKey.json
+
+backend/ml/model.pkl
+backend/ml/feedback_cache.json
+__pycache__/
