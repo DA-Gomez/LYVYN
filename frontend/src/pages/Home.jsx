@@ -1,15 +1,28 @@
 import { Link } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { getWeather } from "../services/api";
 
-const todayInfo = {
-  day: "Wednesday",
-  date: "March 11",
-  city: "Toronto",
-  temp: "3°C",
-  condition: "Snow",
-};
+
 
 export default function Home() {
-  return (
+  
+  const [weather, setWeather] = useState(null);
+
+useEffect(() => {
+  async function loadWeather() {
+    try {
+     const savedCity = localStorage.getItem("selectedCity") || "Toronto";
+     const data = await getWeather(savedCity);
+      setWeather(data);
+    } catch {
+      setWeather(null);
+    }
+  }
+
+  loadWeather();
+}, []);
+
+return (
     <section className="home-page">
       <div className="hero-grid">
         <div className="hero-left">
@@ -52,12 +65,22 @@ export default function Home() {
             <div className="panel-header">
               <span>Today&apos;s Context</span>
               <span className="status-dot"></span>
+
             </div>
-            <h3>{todayInfo.day}, {todayInfo.date}</h3>
-            <p>{todayInfo.city}</p>
+            <h3>
+            {new Date().toLocaleDateString("en-US", { weekday: "long" })},{" "}
+            {new Date().toLocaleDateString("en-US", {
+              month: "long",
+              day: "numeric",
+            })}
+          </h3>
+
+         <p>{weather?.city || "Loading..."}</p>
+
             <div className="weather-chip-row">
-              <span className="weather-chip">{todayInfo.temp}</span>
-              <span className="weather-chip">{todayInfo.condition}</span>
+
+              <span className="weather-chip"> {weather ? `${weather.temperature}°C` : "Loading..."} </span>
+              <span className="weather-chip"> {weather?.rawCondition || "Loading..."} </span>
             </div>
           </div>
 
