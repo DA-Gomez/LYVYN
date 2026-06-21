@@ -1,14 +1,28 @@
 import { Link } from "react-router-dom";
-import { useWeather } from "../context/useWeather";
+import { useEffect, useState } from "react";
+import { getWeather } from "../services/api";
+
+
 
 export default function Home() {
-  const { weather, loading, error } = useWeather();
+  
+  const [weather, setWeather] = useState(null);
 
-  const now = new Date();
-  const day = now.toLocaleDateString(undefined, { weekday: "long" });
-  const date = now.toLocaleDateString(undefined, { month: "long", day: "numeric" });
+useEffect(() => {
+  async function loadWeather() {
+    try {
+     const savedCity = localStorage.getItem("selectedCity") || "Toronto";
+     const data = await getWeather(savedCity);
+      setWeather(data);
+    } catch {
+      setWeather(null);
+    }
+  }
 
-  return (
+  loadWeather();
+}, []);
+
+return (
     <section className="home-page">
       <div className="hero-grid">
         <div className="hero-left">
@@ -51,30 +65,23 @@ export default function Home() {
             <div className="panel-header">
               <span>Today&apos;s Context</span>
               <span className="status-dot"></span>
+
             </div>
-            <h3>{day}, {date}</h3>
+            <h3>
+            {new Date().toLocaleDateString("en-US", { weekday: "long" })},{" "}
+            {new Date().toLocaleDateString("en-US", {
+              month: "long",
+              day: "numeric",
+            })}
+          </h3>
 
-            {/* Weather panel reflects the live API data and its loading state. */}
-            {loading && <p className="soft-text">Loading live weather…</p>}
+         <p>{weather?.city || "Loading..."}</p>
 
-            {!loading && error && (
-              <p className="soft-text">Weather unavailable right now.</p>
-            )}
+            <div className="weather-chip-row">
 
-            {!loading && !error && weather && (
-              <>
-                <p>{weather.city}</p>
-                <div className="weather-chip-row">
-                  <span className="weather-chip">{Math.round(weather.temperature)}°C</span>
-                  {weather.feelsLike != null && (
-                    <span className="weather-chip">
-                      Feels {Math.round(weather.feelsLike)}°C
-                    </span>
-                  )}
-                  <span className="weather-chip">{weather.rawCondition}</span>
-                </div>
-              </>
-            )}
+              <span className="weather-chip"> {weather ? `${weather.temperature}°C` : "Loading..."} </span>
+              <span className="weather-chip"> {weather?.rawCondition || "Loading..."} </span>
+            </div>
           </div>
 
           <div className="hero-panel outfit-preview">
