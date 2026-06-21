@@ -1,3 +1,4 @@
 node_modules
 backend/config/serviceAccountKey.json
 backend/config/serviceAccountKey.json
+serviceAccountKey.json
