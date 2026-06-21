@@ -28,7 +28,7 @@ return (
         <div className="hero-left">
           <p className="eyebrow">SMART OUTFIT RECOMMENDATION</p>
           <h1 className="hero-title">
-            Dress smarter with weather-aware wardrobe suggestions.
+            Dress smarter with weather-aware wardrdfobe suggestions.
           </h1>
           <p className="hero-text">
             LVYVN helps users manage their wardrobe, add clothing items, and get outfit
@@ -86,19 +86,19 @@ return (
 
           <div className="hero-panel outfit-preview">
             <div className="panel-header">
-              <span>Suggested Look</span>
-              <span className="soft-text">Casual / Cold</span>
+              <span>How Recommendations Work</span>
+              <span className="soft-text">Weather + Occasion</span>
             </div>
 
-            <div className="outfit-stack">
-              <div className="outfit-pill">Grey Hoodie</div>
-              <div className="outfit-pill">Black Jeans</div>
-              <div className="outfit-pill">White Sneakers</div>
-              <div className="outfit-pill">Beige Coat</div>
-            </div>
+            <ol className="how-it-works-steps">
+              <li>Add your clothes to the wardrobe</li>
+              <li>We pull in your local weather</li>
+              <li>Pick an occasion and generate an outfit</li>
+              <li>Like or dislike to improve future picks</li>
+            </ol>
 
             <p className="soft-text">
-              Generated from wardrobe items, filtered by weather and occasion.
+              Outfits are generated from your wardrobe items, filtered by weather and occasion.
             </p>
           </div>
         </div>

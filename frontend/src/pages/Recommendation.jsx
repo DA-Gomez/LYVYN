@@ -3,6 +3,8 @@ import WeatherBox from "../components/WeatherBox";
 import { getRecommendation, getWeather, sendFeedback } from "../services/api";
 
 export default function Recommendation() {
+  const { weather, loading: weatherLoading, error: weatherError } = useWeather();
+
   const [occasion, setOccasion] = useState("casual");
   const [outfit, setOutfit] = useState([]);
   const [confidenceScore, setConfidenceScore] = useState(null);
