@@ -1,5 +1,12 @@
 node_modules
 .env
 backend/config/serviceAccountKey.json
-backend/config/serviceAccountKey.json
 serviceAccountKey.json
+
+# macOS
+.DS_Store
+
+# Python
+venv/
+__pycache__/
+*.pyc

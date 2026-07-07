@@ -1,10 +1,11 @@
 import os
+import warnings
+warnings.filterwarnings('ignore')
 import pandas as pd
 import numpy as np
 from sklearn.linear_model import LogisticRegression
 import sys
 import json
-# https://scikit-learn.org/stable/modules/generated/sklearn.linear_model.LogisticRegression.html#sklearn.linear_model.LogisticRegression.predict_proba
 
 try: 
   # data = pd.read_csv("../data.csv") #uncomment this if youre running the python file itself
@@ -30,7 +31,8 @@ model.fit(input_data, classification_data)
 # Receives an  outfits from Express as one JSON string.
 # we will scores each outfit and returns the best one.
 
-if len(sys.argv) == 2:
+stdin_data = sys.stdin.read().strip()
+if stdin_data:
   res = {
     "error": False,
     "errorMessage": "",
@@ -39,7 +41,7 @@ if len(sys.argv) == 2:
   }
 
   try:
-    outfits = json.loads(sys.argv[1])
+    outfits = json.loads(stdin_data)
 
     for outfit in outfits:
       features = np.array([[
@@ -72,5 +74,5 @@ if len(sys.argv) == 2:
 else:
   print(json.dumps({
     "error": True,
-    "errorMessage": "Expected 1 JSON argument containing an array of outfits"
+    "errorMessage": "No outfit data received via stdin"
   }))

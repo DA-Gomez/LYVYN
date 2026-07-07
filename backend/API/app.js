@@ -5,6 +5,7 @@ import dotenv from "dotenv";
 import { spawn } from "child_process";
 import { fileURLToPath } from "url";
 import path from "path";
+import fs from "fs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -55,6 +56,12 @@ function validateCloth(newCloth) {
   if (!validColorGroups.includes(newCloth.colorGroup)) return false;
 
   return true;
+}
+
+function daysSinceLastWorn(lastWornISO) {
+  if (!lastWornISO) return 30;
+  const diffMs = Date.now() - new Date(lastWornISO).getTime();
+  return Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
 }
 
 async function getClothesFromDB() {
@@ -237,29 +244,34 @@ server.post("/recommend", async (req, res) => {
     }
 
     const mlFormattedOutfits = validOutfits.map((outfit, index) => {
+      const outfitItems = Object.values(outfit);
       let heavyCount = 0;
 
-      Object.values(outfit).forEach((item) => {
+      outfitItems.forEach((item) => {
         if (item && item.warmth === "heavy") {
           heavyCount++;
         }
       });
 
+      const avgDaysSinceWorn = Math.round(
+        outfitItems.reduce((sum, item) => sum + daysSinceLastWorn(item.last_worn), 0) / outfitItems.length
+      );
+
       return {
         outfit_id: `outfit_${index}`,
+        item_ids: outfitItems.map(item => item.id).filter(Boolean),
         is_cold: weatherCategory === "cold" ? 1 : 0,
         has_outerwear: outfit.outerwear ? 1 : 0,
         heavy_items_count: heavyCount,
         is_formal: occasion === "formal" ? 1 : 0,
         formality_match: 1,
-        time_since_last_worn: Math.floor(Math.random() * 10)
+        time_since_last_worn: avgDaysSinceWorn
       };
     });
 
-    const pythonProcess = spawn("python", [
-      "ml/model.py",
-      JSON.stringify(mlFormattedOutfits)
-    ]);
+    const pythonProcess = spawn("python", ["ml/model.py"]);
+    pythonProcess.stdin.write(JSON.stringify(mlFormattedOutfits));
+    pythonProcess.stdin.end();
 
     let pythonData = "";
     let pythonError = "";
@@ -272,8 +284,8 @@ server.post("/recommend", async (req, res) => {
       pythonError += data.toString();
     });
 
-    pythonProcess.on("close", () => {
-      if (pythonError) {
+    pythonProcess.on("close", (code) => {
+      if (code !== 0) {
         console.error("Python Error:", pythonError);
 
         return res.status(500).json({
@@ -297,9 +309,12 @@ server.post("/recommend", async (req, res) => {
 
         const finalRecommendation = validOutfits[outfitIndex];
 
+        const reasoning = generateReasoning(weatherCategory, occasion, finalRecommendation, bestOutfitData.ml_score);
         return res.status(200).json({
           recommendedOutfit: finalRecommendation,
           confidenceScore: bestOutfitData.ml_score,
+          reasoning,
+          itemIds: bestOutfitData.item_ids || [],
           allScoredOutfits: mlResponse.all_scored_outfits
         });
 
@@ -338,10 +353,35 @@ server.post("/feedback", async (req, res) => {
 
     const docRef = await db.collection("feedback").add(feedbackData);
 
+    const outfitItems = Array.isArray(feedback.outfit) ? feedback.outfit : [];
+
+    if (feedback.liked && outfitItems.length > 0) {
+      const now = new Date().toISOString();
+      const updatePromises = outfitItems
+        .filter(item => item.id)
+        .map(item => db.collection("clothes").doc(item.id).update({ last_worn: now }));
+      await Promise.all(updatePromises);
+    }
+
+    const is_cold = feedback.weather === "cold" ? 1 : 0;
+    const has_outerwear = outfitItems.some(i => i.category === "outerwear") ? 1 : 0;
+    const heavy_items_count = outfitItems.filter(i => i.warmth === "heavy").length;
+    const is_formal = feedback.occasion === "formal" ? 1 : 0;
+    const formality_match = 1;
+    const time_since_last_worn = outfitItems.length > 0
+      ? Math.round(outfitItems.reduce((sum, i) => sum + daysSinceLastWorn(i.last_worn), 0) / outfitItems.length)
+      : 30;
+    const liked = feedback.liked ? 1 : 0;
+
+    const csvRow = `
+${is_cold},${has_outerwear},${heavy_items_count},${is_formal},${formality_match},${time_since_last_worn},${liked}`;
+    const dataPath = path.resolve(__dirname, "../ml/data.csv");
+    fs.appendFileSync(dataPath, csvRow);
+
     res.status(201).json({
       ...feedbackData,
       id: docRef.id,
-      weather: feedback.weather ?? null, //in case the request comes with such data
+      weather: feedback.weather ?? null,
       occasion: feedback.occasion ?? null,
     });
   } catch (error) {
@@ -383,7 +423,11 @@ server.put("/clothes/:id", async (req, res) => {
 
   try {
     let id = req.params.id;
-    const data = req.body; //updated data
+    const data = req.body;
+
+    if (!validateCloth(data)) {
+      return res.status(400).json({ error: "Invalid cloth data" });
+    }
 
     await db.collection("clothes").doc(id).update(data);
     res.json({ message: "Clothing item updated successfully", id });
@@ -393,37 +437,6 @@ server.put("/clothes/:id", async (req, res) => {
   }
 })
 
-server.delete("/clothes/:id", async (req, res) => {
-  console.log(`DELETE /clothes/${req.params.id} was called`);
-
-  try {
-    let id = req.params.id;
-
-    await db.collection("clothes").doc(id).delete();
-    res.json({ message: "Clothing item deleted successfully", id });
-  } catch (error) {
-    console.error("Error updating clothing: ", error);
-    res.status(500).json({ error: "Failed to update clothing" });
-  }
-})
-
-// edit/update clothing item << DG
-server.put("/clothes/:id", async (req, res) => {
-  console.log(`PUT /clothes/${req.params.id} was called`);
-
-  try {
-    let id = req.params.id;
-    const data = req.body; //updated data
-
-    await db.collection("clothes").doc(id).update(data);
-    res.json({ message: "Clothing item updated successfully", id });
-  } catch (error) {
-    console.error("Error updating clothing: ", error);
-    res.status(500).json({ error: "Failed to update clothing" });
-  }
-})
-
-// delete clothing item << DG
 server.delete("/clothes/:id", async (req, res) => {
   console.log(`DELETE /clothes/${req.params.id} was called`);
 

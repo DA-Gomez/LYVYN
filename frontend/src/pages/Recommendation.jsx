@@ -1,10 +1,8 @@
 import { useEffect, useState } from "react";
 import WeatherBox from "../components/WeatherBox";
-import { getRecommendation, getWeather, sendFeedback } from "../services/api";
+import { getRecommendation, getWeather, submitFeedback } from "../services/api";
 
 export default function Recommendation() {
-  const { weather, loading: weatherLoading, error: weatherError } = useWeather();
-
   const [occasion, setOccasion] = useState("casual");
   const [outfit, setOutfit] = useState([]);
   const [confidenceScore, setConfidenceScore] = useState(null);
@@ -64,7 +62,7 @@ async function handleGenerate() {
 
   async function handleFeedback(liked) {
   try {
-    await sendFeedback({
+    await submitFeedback({
       liked,
       occasion,
       weather: weather?.tempCategory || null,
@@ -112,7 +110,7 @@ const weatherBoxData = weather
       </div>
 
       <div className="recommend-layout">
-        <WeatherBox weather={weatherBoxData} />
+        <WeatherBox weather={weather} loading={weatherLoading} />
 
         <div className="form-card">
           <label>
@@ -166,7 +164,7 @@ const weatherBoxData = weather
         
   {weather && (
   <p className="info-text">
-    Based on {weatherBoxData.day}, {weatherBoxData.city}, and {weatherBoxData.condition} weather.
+    Based on {new Date().toLocaleDateString("en-US", { weekday: "long" })}, {weather.city}, and {weather.rawCondition} weather.
   </p>
 )}
         {error && <p className="info-text">{error}</p>}
