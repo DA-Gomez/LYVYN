@@ -46,6 +46,12 @@ async function handleGenerate() {
 
     setConfidenceScore(data.confidenceScore);
 
+      await submitFeedback({
+        liked,
+        weather: weatherCategory,
+        occasion,
+        outfit,
+      });
     const outfitObject = data.recommendedOutfit;
 
     if (outfitObject) {

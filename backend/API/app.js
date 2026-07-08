@@ -5,6 +5,7 @@ import dotenv from "dotenv";
 import { spawn } from "child_process";
 import { fileURLToPath } from "url";
 import path from "path";
+import fs from "fs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -201,6 +202,46 @@ function generateReasoning(weatherCategory, occasion, outfit, score) {
   return reasons;
 }
 
+const ML_DIR = path.resolve(__dirname, "../ml");
+const MODEL_SCRIPT = path.join(ML_DIR, "model.py");
+const MODEL_FILE = path.join(ML_DIR, "model.pkl");
+const FEEDBACK_CACHE_PATH = path.join(ML_DIR, "feedback_cache.json");
+
+// Turn a feedback outfit into a simple array of clothing items
+function normalizeOutfitToArray(outfit) {
+  return ["top", "bottom", "shoes", "outerwear"].map((key) => outfit[key]).filter(Boolean);//remove all falsy values
+}
+
+// Turn a feedback record into the 6 numbers the model uses
+function deriveFeatures(outfit, weather, occasion) {
+  const items = normalizeOutfitToArray(outfit);
+  return {
+    is_cold: weather === "cold" ? 1 : 0,
+    has_outerwear: items.some((item) => item.category === "outerwear") ? 1 : 0,
+    heavy_items_count: items.filter((item) => item.warmth === "heavy").length,
+    is_formal: occasion === "formal" ? 1 : 0,
+    formality_match: 1,
+    time_since_last_worn: 0,
+  };
+}
+
+async function writeFeedbackTrainingCache() {
+  const snapshot = await db.collection("feedback").get();
+  const rows = [];
+
+  snapshot.docs.forEach((doc) => {
+    const d = doc.data();
+    if (typeof d.liked !== "boolean") return;
+
+    rows.push({
+      ...deriveFeatures(d.outfit, d.weather, d.occasion),
+      liked: d.liked ? 1 : 0,
+    });
+  });
+
+  fs.writeFileSync(FEEDBACK_CACHE_PATH, JSON.stringify(rows));
+}
+
 // call ML model to recommend outfit using the actual py file >> DG
 server.post("/recommend", async (req, res) => {
   console.log("POST /recommend was called");
@@ -256,10 +297,14 @@ server.post("/recommend", async (req, res) => {
       };
     });
 
-    const pythonProcess = spawn("python", [
-      "ml/model.py",
-      JSON.stringify(mlFormattedOutfits)
-    ]);
+    await writeFeedbackTrainingCache();
+
+    const pythonProcess = spawn("python", [MODEL_SCRIPT]);
+
+    // Send outfits to the python script through standard input.
+    //we don't pass them as a cli argument because the list can get long enough to hit the os limit on argument length
+    pythonProcess.stdin.write(JSON.stringify(mlFormattedOutfits));
+    pythonProcess.stdin.end();
 
     let pythonData = "";
     let pythonError = "";
@@ -273,42 +318,24 @@ server.post("/recommend", async (req, res) => {
     });
 
     pythonProcess.on("close", () => {
-      if (pythonError) {
-        console.error("Python Error:", pythonError);
-
-        return res.status(500).json({
-          error: "ML model failed",
-          details: pythonError
-        });
-      }
-
       try {
         const mlResponse = JSON.parse(pythonData);
 
         if (mlResponse.error) {
-          return res.status(500).json({
-            error: mlResponse.errorMessage
-          });
+          return res.status(500).json({ error: mlResponse.errorMessage });
         }
 
-        const bestOutfitData = mlResponse.best_outfit;
-
-        const outfitIndex = parseInt(bestOutfitData.outfit_id.split("_")[1]);
-
-        const finalRecommendation = validOutfits[outfitIndex];
+        const bestOutfit = mlResponse.best_outfit;
+        const outfitIndex = parseInt(bestOutfit.outfit_id.split("_")[1]);
 
         return res.status(200).json({
-          recommendedOutfit: finalRecommendation,
-          confidenceScore: bestOutfitData.ml_score,
+          recommendedOutfit: validOutfits[outfitIndex],
+          confidenceScore: bestOutfit.ml_score,
           allScoredOutfits: mlResponse.all_scored_outfits
         });
-
       } catch (err) {
-        console.error("JSON Parse Error:", err);
-
-        return res.status(500).json({
-          error: "Failed to parse ML response"
-        });
+        console.error("ML model failed:", pythonError || err);
+        return res.status(500).json({ error: "ML model failed", details: pythonError });
       }
     });
 
@@ -332,18 +359,21 @@ server.post("/feedback", async (req, res) => {
     }
 
     const feedbackData = {
-      ...feedback,
+      liked: feedback.liked,
+      weather: feedback.weather ?? null,
+      occasion: feedback.occasion ?? null,
+      outfit: normalizeOutfitToArray(feedback.outfit),
       timestamp: new Date().toISOString(),
     };
 
     const docRef = await db.collection("feedback").add(feedbackData);
 
-    res.status(201).json({
-      ...feedbackData,
-      id: docRef.id,
-      weather: feedback.weather ?? null, //in case the request comes with such data
-      occasion: feedback.occasion ?? null,
-    });
+    // New feedback, so delete the saved model
+    if (fs.existsSync(MODEL_FILE)) {
+      fs.rmSync(MODEL_FILE);
+    }
+
+    res.status(201).json({ id: docRef.id, ...feedbackData });
   } catch (error) {
     console.error("Error saving feedback:", error);
     res.status(500).json({ error: "Failed to save feedback" });
@@ -393,37 +423,6 @@ server.put("/clothes/:id", async (req, res) => {
   }
 })
 
-server.delete("/clothes/:id", async (req, res) => {
-  console.log(`DELETE /clothes/${req.params.id} was called`);
-
-  try {
-    let id = req.params.id;
-
-    await db.collection("clothes").doc(id).delete();
-    res.json({ message: "Clothing item deleted successfully", id });
-  } catch (error) {
-    console.error("Error updating clothing: ", error);
-    res.status(500).json({ error: "Failed to update clothing" });
-  }
-})
-
-// edit/update clothing item << DG
-server.put("/clothes/:id", async (req, res) => {
-  console.log(`PUT /clothes/${req.params.id} was called`);
-
-  try {
-    let id = req.params.id;
-    const data = req.body; //updated data
-
-    await db.collection("clothes").doc(id).update(data);
-    res.json({ message: "Clothing item updated successfully", id });
-  } catch (error) {
-    console.error("Error updating clothing: ", error);
-    res.status(500).json({ error: "Failed to update clothing" });
-  }
-})
-
-// delete clothing item << DG
 server.delete("/clothes/:id", async (req, res) => {
   console.log(`DELETE /clothes/${req.params.id} was called`);
 
