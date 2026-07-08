@@ -3,6 +3,13 @@ node_modules
 backend/config/serviceAccountKey.json
 serviceAccountKey.json
 
+# macOS
+.DS_Store
+
+# Python
+venv/
+__pycache__/
+*.pyc
 backend/ml/model.pkl
 backend/ml/feedback_cache.json
 __pycache__/

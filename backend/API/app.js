@@ -58,6 +58,12 @@ function validateCloth(newCloth) {
   return true;
 }
 
+function daysSinceLastWorn(lastWornISO) {
+  if (!lastWornISO) return 30;
+  const diffMs = Date.now() - new Date(lastWornISO).getTime();
+  return Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
+}
+
 async function getClothesFromDB() {
   const snapshot = await db.collection("clothes").get();
   return snapshot.docs.map((doc) => ({
@@ -278,22 +284,28 @@ server.post("/recommend", async (req, res) => {
     }
 
     const mlFormattedOutfits = validOutfits.map((outfit, index) => {
+      const outfitItems = Object.values(outfit);
       let heavyCount = 0;
 
-      Object.values(outfit).forEach((item) => {
+      outfitItems.forEach((item) => {
         if (item && item.warmth === "heavy") {
           heavyCount++;
         }
       });
 
+      const avgDaysSinceWorn = Math.round(
+        outfitItems.reduce((sum, item) => sum + daysSinceLastWorn(item.last_worn), 0) / outfitItems.length
+      );
+
       return {
         outfit_id: `outfit_${index}`,
+        item_ids: outfitItems.map(item => item.id).filter(Boolean),
         is_cold: weatherCategory === "cold" ? 1 : 0,
         has_outerwear: outfit.outerwear ? 1 : 0,
         heavy_items_count: heavyCount,
         is_formal: occasion === "formal" ? 1 : 0,
         formality_match: 1,
-        time_since_last_worn: Math.floor(Math.random() * 10)
+        time_since_last_worn: avgDaysSinceWorn
       };
     });
 
@@ -328,9 +340,13 @@ server.post("/recommend", async (req, res) => {
         const bestOutfit = mlResponse.best_outfit;
         const outfitIndex = parseInt(bestOutfit.outfit_id.split("_")[1]);
 
+        const reasoning = generateReasoning(weatherCategory, occasion, finalRecommendation, bestOutfitData.ml_score);
         return res.status(200).json({
-          recommendedOutfit: validOutfits[outfitIndex],
-          confidenceScore: bestOutfit.ml_score,
+          recommendedOutfit: finalRecommendation,
+          confidenceScore: bestOutfit.ml_score, //bestOutfitData.ml_score,
+          reasoning,
+          itemIds: bestOutfitData.item_ids || [],
+          //recommendedOutfit: validOutfits[outfitIndex],
           allScoredOutfits: mlResponse.all_scored_outfits
         });
       } catch (err) {
@@ -368,12 +384,42 @@ server.post("/feedback", async (req, res) => {
 
     const docRef = await db.collection("feedback").add(feedbackData);
 
+    const outfitItems = Array.isArray(feedback.outfit) ? feedback.outfit : [];
+
+    if (feedback.liked && outfitItems.length > 0) {
+      const now = new Date().toISOString();
+      const updatePromises = outfitItems
+        .filter(item => item.id)
+        .map(item => db.collection("clothes").doc(item.id).update({ last_worn: now }));
+      await Promise.all(updatePromises);
+    }
+
+    const is_cold = feedback.weather === "cold" ? 1 : 0;
+    const has_outerwear = outfitItems.some(i => i.category === "outerwear") ? 1 : 0;
+    const heavy_items_count = outfitItems.filter(i => i.warmth === "heavy").length;
+    const is_formal = feedback.occasion === "formal" ? 1 : 0;
+    const formality_match = 1;
+    const time_since_last_worn = outfitItems.length > 0
+      ? Math.round(outfitItems.reduce((sum, i) => sum + daysSinceLastWorn(i.last_worn), 0) / outfitItems.length)
+      : 30;
+    const liked = feedback.liked ? 1 : 0;
+
+    const csvRow = `
+${is_cold},${has_outerwear},${heavy_items_count},${is_formal},${formality_match},${time_since_last_worn},${liked}`;
+    const dataPath = path.resolve(__dirname, "../ml/data.csv");
+    fs.appendFileSync(dataPath, csvRow);
+
     // New feedback, so delete the saved model
     if (fs.existsSync(MODEL_FILE)) {
       fs.rmSync(MODEL_FILE);
     }
-
-    res.status(201).json({ id: docRef.id, ...feedbackData });
+    
+    res.status(201).json({
+      ...feedbackData,
+      id: docRef.id,
+      weather: feedback.weather ?? null,
+      occasion: feedback.occasion ?? null,
+    });
   } catch (error) {
     console.error("Error saving feedback:", error);
     res.status(500).json({ error: "Failed to save feedback" });
@@ -413,7 +459,11 @@ server.put("/clothes/:id", async (req, res) => {
 
   try {
     let id = req.params.id;
-    const data = req.body; //updated data
+    const data = req.body;
+
+    if (!validateCloth(data)) {
+      return res.status(400).json({ error: "Invalid cloth data" });
+    }
 
     await db.collection("clothes").doc(id).update(data);
     res.json({ message: "Clothing item updated successfully", id });
