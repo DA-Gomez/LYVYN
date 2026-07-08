@@ -10,3 +10,6 @@ serviceAccountKey.json
 venv/
 __pycache__/
 *.pyc
+backend/ml/model.pkl
+backend/ml/feedback_cache.json
+__pycache__/

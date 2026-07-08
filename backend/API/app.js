@@ -208,6 +208,46 @@ function generateReasoning(weatherCategory, occasion, outfit, score) {
   return reasons;
 }
 
+const ML_DIR = path.resolve(__dirname, "../ml");
+const MODEL_SCRIPT = path.join(ML_DIR, "model.py");
+const MODEL_FILE = path.join(ML_DIR, "model.pkl");
+const FEEDBACK_CACHE_PATH = path.join(ML_DIR, "feedback_cache.json");
+
+// Turn a feedback outfit into a simple array of clothing items
+function normalizeOutfitToArray(outfit) {
+  return ["top", "bottom", "shoes", "outerwear"].map((key) => outfit[key]).filter(Boolean);//remove all falsy values
+}
+
+// Turn a feedback record into the 6 numbers the model uses
+function deriveFeatures(outfit, weather, occasion) {
+  const items = normalizeOutfitToArray(outfit);
+  return {
+    is_cold: weather === "cold" ? 1 : 0,
+    has_outerwear: items.some((item) => item.category === "outerwear") ? 1 : 0,
+    heavy_items_count: items.filter((item) => item.warmth === "heavy").length,
+    is_formal: occasion === "formal" ? 1 : 0,
+    formality_match: 1,
+    time_since_last_worn: 0,
+  };
+}
+
+async function writeFeedbackTrainingCache() {
+  const snapshot = await db.collection("feedback").get();
+  const rows = [];
+
+  snapshot.docs.forEach((doc) => {
+    const d = doc.data();
+    if (typeof d.liked !== "boolean") return;
+
+    rows.push({
+      ...deriveFeatures(d.outfit, d.weather, d.occasion),
+      liked: d.liked ? 1 : 0,
+    });
+  });
+
+  fs.writeFileSync(FEEDBACK_CACHE_PATH, JSON.stringify(rows));
+}
+
 // call ML model to recommend outfit using the actual py file >> DG
 server.post("/recommend", async (req, res) => {
   console.log("POST /recommend was called");
@@ -269,7 +309,12 @@ server.post("/recommend", async (req, res) => {
       };
     });
 
-    const pythonProcess = spawn("python", ["ml/model.py"]);
+    await writeFeedbackTrainingCache();
+
+    const pythonProcess = spawn("python", [MODEL_SCRIPT]);
+
+    // Send outfits to the python script through standard input.
+    //we don't pass them as a cli argument because the list can get long enough to hit the os limit on argument length
     pythonProcess.stdin.write(JSON.stringify(mlFormattedOutfits));
     pythonProcess.stdin.end();
 
@@ -284,46 +329,29 @@ server.post("/recommend", async (req, res) => {
       pythonError += data.toString();
     });
 
-    pythonProcess.on("close", (code) => {
-      if (code !== 0) {
-        console.error("Python Error:", pythonError);
-
-        return res.status(500).json({
-          error: "ML model failed",
-          details: pythonError
-        });
-      }
-
+    pythonProcess.on("close", () => {
       try {
         const mlResponse = JSON.parse(pythonData);
 
         if (mlResponse.error) {
-          return res.status(500).json({
-            error: mlResponse.errorMessage
-          });
+          return res.status(500).json({ error: mlResponse.errorMessage });
         }
 
-        const bestOutfitData = mlResponse.best_outfit;
-
-        const outfitIndex = parseInt(bestOutfitData.outfit_id.split("_")[1]);
-
-        const finalRecommendation = validOutfits[outfitIndex];
+        const bestOutfit = mlResponse.best_outfit;
+        const outfitIndex = parseInt(bestOutfit.outfit_id.split("_")[1]);
 
         const reasoning = generateReasoning(weatherCategory, occasion, finalRecommendation, bestOutfitData.ml_score);
         return res.status(200).json({
           recommendedOutfit: finalRecommendation,
-          confidenceScore: bestOutfitData.ml_score,
+          confidenceScore: bestOutfit.ml_score, //bestOutfitData.ml_score,
           reasoning,
           itemIds: bestOutfitData.item_ids || [],
+          //recommendedOutfit: validOutfits[outfitIndex],
           allScoredOutfits: mlResponse.all_scored_outfits
         });
-
       } catch (err) {
-        console.error("JSON Parse Error:", err);
-
-        return res.status(500).json({
-          error: "Failed to parse ML response"
-        });
+        console.error("ML model failed:", pythonError || err);
+        return res.status(500).json({ error: "ML model failed", details: pythonError });
       }
     });
 
@@ -347,7 +375,10 @@ server.post("/feedback", async (req, res) => {
     }
 
     const feedbackData = {
-      ...feedback,
+      liked: feedback.liked,
+      weather: feedback.weather ?? null,
+      occasion: feedback.occasion ?? null,
+      outfit: normalizeOutfitToArray(feedback.outfit),
       timestamp: new Date().toISOString(),
     };
 
@@ -378,6 +409,11 @@ ${is_cold},${has_outerwear},${heavy_items_count},${is_formal},${formality_match}
     const dataPath = path.resolve(__dirname, "../ml/data.csv");
     fs.appendFileSync(dataPath, csvRow);
 
+    // New feedback, so delete the saved model
+    if (fs.existsSync(MODEL_FILE)) {
+      fs.rmSync(MODEL_FILE);
+    }
+    
     res.status(201).json({
       ...feedbackData,
       id: docRef.id,
