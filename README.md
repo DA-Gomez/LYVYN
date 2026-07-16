@@ -2,52 +2,75 @@
 
 ## Project Description
 
+LYVYN is a virtual wardrobe and outfit recommendation app. You add your clothing items (category, warmth, formality, color group), and LYVYN suggests an outfit based on the live weather in your city and the occasion (casual or formal). Every outfit can be liked or disliked, and that feedback is used to retrain a small machine-learning model so recommendations improve over time.
+
+**Tech stack:** React + Vite (frontend), Express + Firebase Firestore (backend), Python + scikit-learn (ML model).
+
+## Prerequisites
+
+- Git
+- Node.js (with npm)
+- Python 3
+
+You also need two secret files that are NOT in the repository:
+
+1. `backend/config/serviceAccountKey.json`: the Firebase service account key.
+2. `.env` in the project root fill OPENWEATHER_API_KEY with your OpenWeather API key.
+
 ## How to run
 
-Before you start make sure you've got git and node.js installed (with npm preferably)
+Clone the repository and open a terminal in the project folder:
 
-Open or create the folder in which the project will be found (C:\Users\user\Desktop)
+```
+git clone https://github.com/DA-Gomez/LYVYN.git
+cd LYVYN
+```
 
-Open the terminal of you choice (powershell, command prompt, etc) and set the directory to folder
+### 1. Set up the backend
 
-``$ cd C:\Users\user\Desktop``
+```
+cd backend
+npm install
+```
 
-Then clone the repository https://github.com/DA-Gomez/LYVYN.git
+Set up the Python environment for the ML model (still inside `/backend`):
 
-``$ git clone https://github.com/DA-Gomez/LYVYN.git``
+```
+python -m venv venv
+venv\Scripts\activate
+pip install -r ml/requirements.txt
+```
 
-After you've cloned the project you want to install npm in the project itself so
+*If `python` doesn't work, try `py` or `python3`.*
 
-``$ npm install`` 
+### 2. Start the backend
 
-If you want to view the site run (make sure the directory is /frontend)
+From `/backend`, with the venv activated (so the ML script can find its packages):
 
-``$ npm run dev``
+```
+npm start
+```
 
-### Run the python file
+The API runs on http://localhost:3000
 
-change directory to /backend
+### 3. Start the frontend
 
-then `$ venv\Scripts\activate`
+In a second terminal:
 
-to run a python file do `$ py filename.py`  *note that if py doesnt work to python or python3. Dont forget to change the directory
-
-### Run the backend 
-
-from root folder you can
-
-``$ node backend/API/app.js`` 
+```
+cd frontend
+npm install
+npm run dev
+```
 
 ## Push changes
 
-If you've got local changes you want to put on the repository do
+If you've got local changes you want to put on the repository, do
 
-``$ git init``
-
-``$ git add C:\dir\``
-
-If you wish for all your changes to get added do `git add .` I recommend you learn a bit of how to change directories so like ../ means parent folder and . means all files in the curr folder etc.
+``$ git add .``
 
 ``$ git commit -m "your message"``
 
 ``$ git push``
+
+Work on your own branch and open a pull request instead of pushing straight to master.

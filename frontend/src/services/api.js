@@ -56,8 +56,11 @@ export async function getRecommendation(payload) {
 
 // GET /weather -> fetches real-time weather for the given city
 // returns { city, temperature, rawCondition, tempCategory, conditionCategory, summary }
-export async function getWeather() {
-  const res = await fetch(`${BASE_URL}/weather`, {
+export async function getWeather(city) {
+  const url = city
+    ? `${BASE_URL}/weather?city=${encodeURIComponent(city)}`
+    : `${BASE_URL}/weather`;
+  const res = await fetch(url, {
     method: "GET",
   });
   if (!res.ok) throw new Error("Failed to fetch weather");

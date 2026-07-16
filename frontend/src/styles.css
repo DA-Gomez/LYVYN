@@ -256,7 +256,7 @@ h1, h2, h3, h4, h5, h6 {
   align-items: stretch;
 }
 
-.hero-left, .feature-card, .card, .form-card, .weather-box, .result-box, .hero-panel, .stat-card, .wardrobe-card, .recommendation-result-card, .about-hero {
+.hero-left, .feature-card, .card, .about-hero, .form-card, .weather-box, .result-box, .hero-panel, .stat-card, .wardrobe-card, .recommendation-result-card, .about-hero {
   background: var(--glass-bg);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
@@ -264,6 +264,16 @@ h1, h2, h3, h4, h5, h6 {
   box-shadow: var(--glass-shadow);
   border-radius: 28px;
   transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.about-page {
+  display: grid;
+  gap: 12px;
+}
+
+.about-hero {
+  padding: 36px;
+  line-height: 1.7;
 }
 
 .hero-left {
@@ -467,7 +477,7 @@ h1, h2, h3, h4, h5, h6 {
 
 .feature-card h2, .feature-card h3 {
   font-size: 2rem;
-  margin: 16px 0;
+  margin: 0 0 10px 0;
 }
 
 .feature-card p {

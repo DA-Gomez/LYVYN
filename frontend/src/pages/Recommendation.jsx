@@ -6,12 +6,14 @@ export default function Recommendation() {
   const [occasion, setOccasion] = useState("casual");
   const [outfit, setOutfit] = useState([]);
   const [confidenceScore, setConfidenceScore] = useState(null);
+  const [reasoning, setReasoning] = useState([]);
   const [feedback, setFeedback] = useState("");
+  const [feedbackGiven, setFeedbackGiven] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [weather, setWeather] = useState(null);
   const [weatherLoading, setWeatherLoading] = useState(true);
-  const [city, setCity] = useState("Toronto");
+  const [city, setCity] = useState(localStorage.getItem("selectedCity") || "Toronto");
 
   useEffect(() => {
     async function loadWeather() {
@@ -33,6 +35,9 @@ async function handleGenerate() {
     setLoading(true);
     setError("");
     setConfidenceScore(null);
+    setReasoning([]);
+    setFeedback("");
+    setFeedbackGiven(false);
 
     const payload = {
       weatherCategory: weather?.tempCategory || "cold",
@@ -43,13 +48,8 @@ async function handleGenerate() {
     const data = await getRecommendation(payload);
 
     setConfidenceScore(data.confidenceScore);
+    setReasoning(data.reasoning || []);
 
-      await submitFeedback({
-        liked,
-        weather: weatherCategory,
-        occasion,
-        outfit,
-      });
     const outfitObject = data.recommendedOutfit;
 
     if (outfitObject) {
@@ -77,33 +77,12 @@ async function handleGenerate() {
       outfit,
     });
 
-  setFeedback(liked ? "Liked!" : "Disliked!");
+    setFeedback(liked ? "Liked!" : "Disliked!");
+    setFeedbackGiven(true);
   } catch {
      setFeedback("Could not save feedback right now.");
   }
 }
-
-const weatherBoxData = weather
-  ? {
-      city: weather.city,
-      day: new Date().toLocaleDateString("en-US", { weekday: "long" }),
-      date: new Date().toLocaleDateString("en-US", {
-        month: "long",
-        day: "numeric",
-      }),
-      temp: `${weather.temperature}°C`,
-      condition: weather.rawCondition,
-    }
-  : {
-      city: "Toronto",
-      day: new Date().toLocaleDateString("en-US", { weekday: "long" }),
-      date: new Date().toLocaleDateString("en-US", {
-        month: "long",
-        day: "numeric",
-      }),
-      temp: weatherLoading ? "Loading..." : "--",
-      condition: weatherLoading ? "Loading..." : "Unavailable",
-    };
 
   return (
     <section>
@@ -120,23 +99,26 @@ const weatherBoxData = weather
 
         <div className="form-card">
           <label>
-              City
-              <select  value={city}
-                    onChange={(e) => {
-                      setCity(e.target.value);
-                      localStorage.setItem("selectedCity", e.target.value);
-                      setOutfit([]);
-                      setConfidenceScore(null);
-                      setFeedback("");
-                      setError("");
-                    }}>
-                <option value="Toronto">Toronto</option>
-                <option value="Markham">Markham</option>
-                <option value="Ottawa">Ottawa</option>
-                <option value="Vancouver">Vancouver</option>
-                <option value="Calgary">Calgary</option>
-              </select>
-            </label>
+            City
+            <select value={city}
+              onChange={(e) => {
+                setCity(e.target.value);
+                localStorage.setItem("selectedCity", e.target.value);
+                setOutfit([]);
+                setConfidenceScore(null);
+                setReasoning([]);
+                setFeedback("");
+                setFeedbackGiven(false);
+                setError("");
+              }}
+            >
+              <option value="Toronto">Toronto</option>
+              <option value="Markham">Markham</option>
+              <option value="Ottawa">Ottawa</option>
+              <option value="Vancouver">Vancouver</option>
+              <option value="Calgary">Calgary</option>
+            </select>
+          </label>
 
           <label>
             Occasion
@@ -157,7 +139,7 @@ const weatherBoxData = weather
           <span>Suggested Outfit</span>
           <span className="mini-soft">
           {weather
-            ? `${weather.tempCategory} / ${weatherBoxData.city} / ${occasion}`
+            ? `${weather.tempCategory} / ${weather.city} / ${occasion}`
             : occasion}
         </span>
         </div>
@@ -200,25 +182,23 @@ const weatherBoxData = weather
           </div>
         )}
 
-        {outfit.length > 0 && (
+        {outfit.length > 0 && reasoning.length > 0 && (
   <div className="style-note-box">
     <h4>Why this outfit?</h4>
     <ul>
-      <li>Matches {weather?.tempCategory || "current"} weather</li>
-      <li>Fits a {occasion} occasion</li>
-      {outfit.some(item => item.category === "outerwear") && (
-        <li>Includes outerwear for comfort</li>
-      )}
+      {reasoning.map((reason, index) => (
+        <li key={index}>{reason}</li>
+      ))}
     </ul>
   </div>
 )}
 
        {outfit.length > 0 && (
   <div className="feedback-row">
-    <button className="secondary-btn" onClick={() => handleFeedback(true)}>
+    <button className="secondary-btn" onClick={() => handleFeedback(true)} disabled={feedbackGiven}>
       Like
     </button>
-    <button className="secondary-btn" onClick={() => handleFeedback(false)}>
+    <button className="secondary-btn" onClick={() => handleFeedback(false)} disabled={feedbackGiven}>
       Dislike
     </button>
   </div>

@@ -28,10 +28,10 @@ return (
         <div className="hero-left">
           <p className="eyebrow">SMART OUTFIT RECOMMENDATION</p>
           <h1 className="hero-title">
-            Dress smarter with weather-aware wardrdfobe suggestions.
+            Dress smarter with weather-aware wardrobe suggestions.
           </h1>
           <p className="hero-text">
-            LVYVN helps users manage their wardrobe, add clothing items, and get outfit
+            LYVYN helps users manage their wardrobe, add clothing items, and get outfit
             recommendations based on weather, occasion, and personal feedback.
           </p>
 

@@ -51,7 +51,7 @@ export default function AddItem() {
           <p className="eyebrow">NEW CLOTHING ENTRY</p>
           <h1 style={{ fontSize: '2.5rem', marginBottom: '16px' }}>Add Clothing Item</h1>
           <p className="page-text add-item-subtext" style={{ color: 'var(--text-muted)' }}>
-            Build your wardrobe with structured clothing data so LVYVN can generate
+            Build your wardrobe with structured clothing data so LYVYN can generate
             better recommendations based on weather, occasion, and personal style.
           </p>
         </div>

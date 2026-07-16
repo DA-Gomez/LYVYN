@@ -6,7 +6,7 @@ export default function Navbar() {
       <div className="logo-wrap">
         <div className="logo-mark">L</div>
         <div>
-          <div className="logo">LVYVN</div>
+          <div className="logo">LYVYN</div>
           <p className="logo-sub">Virtual wardrobe intelligence</p>
         </div>
       </div>
@@ -26,6 +26,9 @@ export default function Navbar() {
           className={({ isActive }) => (isActive ? "active-link" : "")}
         >
           Recommendation
+        </NavLink>
+        <NavLink to="/about" className={({ isActive }) => (isActive ? "active-link" : "")}>
+          About
         </NavLink>
       </nav>
     </header>

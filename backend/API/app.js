@@ -9,7 +9,7 @@ import fs from "fs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-dotenv.config({ path: path.resolve(__dirname, "../../.env") });
+dotenv.config({ path: path.resolve(__dirname, "../../.env"), quiet: true });
 
 const server = express();
 
@@ -87,36 +87,6 @@ async function addClothToDB(newCloth) {
   return { id: docRef.id, ...clothData };
 }
 
-// ML integration (more in depth explanations found in test.js) >> DG
-const executePython = async (script, args) => {
-  const input = args.map(arg => arg.toString());
-  const py = spawn("python", [script, ...input]);
-  // const py = spawn("venv/Scripts/python", [script, ...input]);
-
-  const result = await new Promise((resolve, reject) => {
-    let output;
-
-    py.stdout.on('data', (data) => {
-      try {
-        output = JSON.parse(data.toString()); 
-      } catch (err) {
-        console.error("Parse error:", data.toString());
-      }
-    })
-
-    py.stderr.on("data", (data) => {
-      console.error('python error: ', data.toString());
-      reject(`error in ${script}`);
-    })
-
-    py.on("exit", (code) => {
-      resolve(output);
-    })
-  })
-
-  return result;
-};
-
 function getOutfits(filteredClothes, requiresOuterwear) {
   const tops = filteredClothes.filter((c) => c.category === "top");
   const bottoms = filteredClothes.filter((c) => c.category === "bottom");
@@ -165,8 +135,13 @@ function ruleFiltering(weatherCategory, occasion, listOfClothes, clothes) {
 server.get("/clothes", async (req, res) => {
   console.log("GET /clothes was called");
 
-  const clothes = await getClothesFromDB();
-  res.json(clothes);
+  try {
+    const clothes = await getClothesFromDB();
+    res.json(clothes);
+  } catch (error) {
+    console.error("Error fetching clothes:", error);
+    res.status(500).json({ error: "Failed to fetch clothes" });
+  }
 });
 
 server.post("/clothes", async (req, res) => {
@@ -213,34 +188,40 @@ const MODEL_SCRIPT = path.join(ML_DIR, "model.py");
 const MODEL_FILE = path.join(ML_DIR, "model.pkl");
 const FEEDBACK_CACHE_PATH = path.join(ML_DIR, "feedback_cache.json");
 
-// Turn a feedback outfit into a simple array of clothing items
+// Turn a feedback outfit into a simple array of clothing items.
+// The frontend sends an array already; this handles the { top, bottom, ... } object form too
 function normalizeOutfitToArray(outfit) {
+  if (Array.isArray(outfit)) return outfit;
+  if (!outfit) return [];
   return ["top", "bottom", "shoes", "outerwear"].map((key) => outfit[key]).filter(Boolean);//remove all falsy values
 }
 
-// Turn a feedback record into the 6 numbers the model uses
-function deriveFeatures(outfit, weather, occasion) {
-  const items = normalizeOutfitToArray(outfit);
+// Turn an outfit + context into the 6 numbers the model trains on
+function deriveFeatures(outfitItems, weather, occasion) {
   return {
     is_cold: weather === "cold" ? 1 : 0,
-    has_outerwear: items.some((item) => item.category === "outerwear") ? 1 : 0,
-    heavy_items_count: items.filter((item) => item.warmth === "heavy").length,
+    has_outerwear: outfitItems.some((item) => item.category === "outerwear") ? 1 : 0,
+    heavy_items_count: outfitItems.filter((item) => item.warmth === "heavy").length,
     is_formal: occasion === "formal" ? 1 : 0,
     formality_match: 1,
-    time_since_last_worn: 0,
+    time_since_last_worn: outfitItems.length > 0
+      ? Math.round(outfitItems.reduce((sum, item) => sum + daysSinceLastWorn(item.last_worn), 0) / outfitItems.length)
+      : 30,
   };
 }
 
+// Dump every feedback doc's stored feature row to a JSON file for model.py.
+// Docs saved before features were stored on them are skipped
 async function writeFeedbackTrainingCache() {
   const snapshot = await db.collection("feedback").get();
   const rows = [];
 
   snapshot.docs.forEach((doc) => {
     const d = doc.data();
-    if (typeof d.liked !== "boolean") return;
+    if (typeof d.liked !== "boolean" || !d.features) return;
 
     rows.push({
-      ...deriveFeatures(d.outfit, d.weather, d.occasion),
+      ...d.features,
       liked: d.liked ? 1 : 0,
     });
   });
@@ -339,14 +320,14 @@ server.post("/recommend", async (req, res) => {
 
         const bestOutfit = mlResponse.best_outfit;
         const outfitIndex = parseInt(bestOutfit.outfit_id.split("_")[1]);
+        const finalRecommendation = validOutfits[outfitIndex];
 
-        const reasoning = generateReasoning(weatherCategory, occasion, finalRecommendation, bestOutfitData.ml_score);
+        const reasoning = generateReasoning(weatherCategory, occasion, finalRecommendation, bestOutfit.ml_score);
         return res.status(200).json({
           recommendedOutfit: finalRecommendation,
-          confidenceScore: bestOutfit.ml_score, //bestOutfitData.ml_score,
+          confidenceScore: bestOutfit.ml_score,
           reasoning,
-          itemIds: bestOutfitData.item_ids || [],
-          //recommendedOutfit: validOutfits[outfitIndex],
+          itemIds: bestOutfit.item_ids || [],
           allScoredOutfits: mlResponse.all_scored_outfits
         });
       } catch (err) {
@@ -374,17 +355,20 @@ server.post("/feedback", async (req, res) => {
       return res.status(400).json({ error: "Invalid feedback data" });
     }
 
+    const outfitItems = normalizeOutfitToArray(feedback.outfit);
+
+    // Compute the training features once, now, and store them with the doc.
+    // last_worn hasn't been updated yet, so this captures the state the user actually judged
     const feedbackData = {
       liked: feedback.liked,
       weather: feedback.weather ?? null,
       occasion: feedback.occasion ?? null,
-      outfit: normalizeOutfitToArray(feedback.outfit),
+      outfit: outfitItems,
+      features: deriveFeatures(outfitItems, feedback.weather, feedback.occasion),
       timestamp: new Date().toISOString(),
     };
 
     const docRef = await db.collection("feedback").add(feedbackData);
-
-    const outfitItems = Array.isArray(feedback.outfit) ? feedback.outfit : [];
 
     if (feedback.liked && outfitItems.length > 0) {
       const now = new Date().toISOString();
@@ -394,31 +378,14 @@ server.post("/feedback", async (req, res) => {
       await Promise.all(updatePromises);
     }
 
-    const is_cold = feedback.weather === "cold" ? 1 : 0;
-    const has_outerwear = outfitItems.some(i => i.category === "outerwear") ? 1 : 0;
-    const heavy_items_count = outfitItems.filter(i => i.warmth === "heavy").length;
-    const is_formal = feedback.occasion === "formal" ? 1 : 0;
-    const formality_match = 1;
-    const time_since_last_worn = outfitItems.length > 0
-      ? Math.round(outfitItems.reduce((sum, i) => sum + daysSinceLastWorn(i.last_worn), 0) / outfitItems.length)
-      : 30;
-    const liked = feedback.liked ? 1 : 0;
-
-    const csvRow = `
-${is_cold},${has_outerwear},${heavy_items_count},${is_formal},${formality_match},${time_since_last_worn},${liked}`;
-    const dataPath = path.resolve(__dirname, "../ml/data.csv");
-    fs.appendFileSync(dataPath, csvRow);
-
-    // New feedback, so delete the saved model
+    // New feedback, so delete the saved model to force a retrain on the next recommendation
     if (fs.existsSync(MODEL_FILE)) {
       fs.rmSync(MODEL_FILE);
     }
-    
+
     res.status(201).json({
       ...feedbackData,
       id: docRef.id,
-      weather: feedback.weather ?? null,
-      occasion: feedback.occasion ?? null,
     });
   } catch (error) {
     console.error("Error saving feedback:", error);
@@ -482,8 +449,8 @@ server.delete("/clothes/:id", async (req, res) => {
     await db.collection("clothes").doc(id).delete();
     res.json({ message: "Clothing item deleted successfully", id });
   } catch (error) {
-    console.error("Error updating clothing: ", error);
-    res.status(500).json({ error: "Failed to update clothing" });
+    console.error("Error deleting clothing: ", error);
+    res.status(500).json({ error: "Failed to delete clothing" });
   }
 })
 
