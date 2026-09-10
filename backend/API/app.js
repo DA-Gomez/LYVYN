@@ -65,6 +65,7 @@ const clothes = [
   },
 ];
 
+
 function getclothes() {
   return clothes;
 }
